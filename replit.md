@@ -53,19 +53,25 @@ artifacts-monorepo/
 - Bearer token via `setAuthTokenGetter` in the API client
 - Token set on root `_layout.tsx` load
 
+### Equipment Catalog
+
+The equipment catalog (`lib/api-server/src/lib/equipment.ts`) is a **global in-memory constant** — not a per-restaurant database table. All restaurants share the same catalog of equipment items organized by area (Front Counter, Grill, Back of House, Technology). This is intentional for V1: the catalog is consistent across all restaurant locations. The `GET /api/equipment` endpoint requires authentication (bearer token) and optionally accepts an `area` query param to filter the response.
+
 ### Seed Data
 
 | Restaurant | PIN | Location |
 |---|---|---|
-| Restaurant 1 | 1234 | Downtown |
-| Restaurant 2 | 5678 | Uptown |
-| Restaurant 3 | 4321 | Midtown |
-| Restaurant 4 | 9876 | Westside |
+| Maple Street | 1234 | Maple St & 5th Ave |
+| Downtown West | 5678 | 100 Main St |
+| Airport Rd | 4321 | 2200 Airport Road |
+| Riverside | 9876 | 300 River Blvd |
 
 | Supervisor | Username | Password |
 |---|---|---|
-| Admin | admin | admin123 |
-| Supervisor | supervisor | pass123 |
+| Alex Johnson | admin | admin123 |
+| Maria Garcia | supervisor | pass123 |
+
+Supervisor passwords are stored as PBKDF2-SHA512 with a random 16-byte salt in `salt:hash` format (100,000 iterations). The seed script and API auth lib use identical hashing logic.
 
 ### Navigation (Expo Router)
 
