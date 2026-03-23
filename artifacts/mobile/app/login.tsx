@@ -42,7 +42,7 @@ export default function LoginScreen() {
       await loginRestaurant(res.token, res.restaurant);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(restaurant)");
-    } catch (e: any) {
+    } catch {
       setError("Invalid PIN. Please try again.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -59,7 +59,7 @@ export default function LoginScreen() {
       await loginSupervisor(res.token, res.supervisor);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(supervisor)");
-    } catch (e: any) {
+    } catch {
       setError("Invalid username or password.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -290,7 +290,7 @@ export default function LoginScreen() {
       await loginRestaurant(res.token, res.restaurant);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(restaurant)");
-    } catch (e: any) {
+    } catch {
       setPin("");
       setError("Invalid PIN. Please try again.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
