@@ -88,6 +88,8 @@ paths:
       operationId: supervisorLogout
       tags: [auth]
       summary: Supervisor logout
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Logged out
@@ -101,6 +103,8 @@ paths:
       operationId: getMe
       tags: [auth]
       summary: Get current session info
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Current session
@@ -120,6 +124,8 @@ paths:
       operationId: listRestaurants
       tags: [restaurants]
       summary: List all restaurants (supervisor only)
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: List of restaurants
@@ -135,6 +141,8 @@ paths:
       operationId: getRestaurant
       tags: [restaurants]
       summary: Get a restaurant by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -160,6 +168,8 @@ paths:
       operationId: listRestaurantIssues
       tags: [issues]
       summary: List open issues for a restaurant
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -186,6 +196,8 @@ paths:
       operationId: listIssues
       tags: [issues]
       summary: List all issues across all restaurants (supervisor)
+      security:
+        - bearerAuth: []
       parameters:
         - name: restaurantId
           in: query
@@ -227,6 +239,8 @@ paths:
       operationId: createIssue
       tags: [issues]
       summary: Create a new issue
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -252,6 +266,8 @@ paths:
       operationId: getIssue
       tags: [issues]
       summary: Get an issue by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -275,6 +291,8 @@ paths:
       operationId: updateIssue
       tags: [issues]
       summary: Update an issue
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -306,6 +324,8 @@ paths:
       operationId: addComment
       tags: [comments]
       summary: Add a comment to an issue
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -337,6 +357,8 @@ paths:
       operationId: getEquipment
       tags: [equipment]
       summary: Get equipment list, optionally filtered by area
+      security:
+        - bearerAuth: []
       parameters:
         - name: area
           in: query
@@ -352,6 +374,12 @@ paths:
                 $ref: "#/components/schemas/EquipmentCatalog"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object

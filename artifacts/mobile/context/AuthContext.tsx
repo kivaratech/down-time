@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setBaseUrl, supervisorLogout } from "@workspace/api-client-react";
 import React, {
   createContext,
   useCallback,
@@ -116,6 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    if (authType === "supervisor") {
+      try {
+        await supervisorLogout();
+      } catch {
+      }
+    }
     await AsyncStorage.multiRemove([
       TOKEN_KEY,
       AUTH_TYPE_KEY,
@@ -126,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthType(null);
     setRestaurant(null);
     setSupervisor(null);
-  }, []);
+  }, [authType]);
 
   return (
     <AuthContext.Provider
