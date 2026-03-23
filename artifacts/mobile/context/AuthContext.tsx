@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter, setBaseUrl, supervisorLogout } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setBaseUrl, supervisorLogout, getMe } from "@workspace/api-client-react";
 import React, {
   createContext,
   useCallback,
@@ -69,6 +69,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (savedToken && savedType) {
         setToken(savedToken);
+        setAuthTokenGetter(() => savedToken);
+        try {
+          await getMe();
+        } catch {
+          await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_TYPE_KEY, RESTAURANT_KEY, SUPERVISOR_KEY]);
+          setToken(null);
+          return;
+        }
         setAuthType(savedType as AuthType);
         if (savedType === "restaurant" && savedRestaurant) {
           setRestaurant(JSON.parse(savedRestaurant));
@@ -77,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSupervisor(JSON.parse(savedSupervisor));
         }
       }
-    } catch (e) {
+    } catch {
     } finally {
       setIsLoading(false);
     }

@@ -107,7 +107,7 @@ Flat color object in `constants/colors.ts`:
 |---|---|---|
 | POST | /api/auth/restaurant/login | PIN login → token + restaurant |
 | POST | /api/auth/supervisor/login | Cred login → token + supervisor |
-| POST | /api/auth/logout | Clear session |
+| POST | /api/auth/supervisor/logout | Clear supervisor session |
 | GET | /api/auth/me | Current user info |
 | GET | /api/restaurants | List all (supervisor) |
 | GET | /api/restaurants/:id/issues | Restaurant issues with status filter |
