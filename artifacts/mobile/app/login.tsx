@@ -86,6 +86,7 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.appName}>DownTime</Text>
           <Text style={styles.tagline}>Restaurant Issue Tracker</Text>
+          <Text style={styles.orgName}>Gandar Management, Inc.</Text>
         </View>
 
         {mode === "choose" && (
@@ -146,7 +147,7 @@ export default function LoginScreen() {
             </Text>
 
             <View style={styles.pinContainer}>
-              {[0, 1, 2, 3].map((i) => (
+              {[0, 1, 2, 3, 4].map((i) => (
                 <View
                   key={i}
                   style={[
@@ -161,12 +162,12 @@ export default function LoginScreen() {
               style={styles.hiddenInput}
               value={pin}
               onChangeText={(v) => {
-                const digits = v.replace(/\D/g, "").slice(0, 4);
+                const digits = v.replace(/\D/g, "").slice(0, 5);
                 setPin(digits);
                 setError("");
               }}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={5}
               secureTextEntry
               autoFocus
             />
@@ -179,10 +180,10 @@ export default function LoginScreen() {
                   onPress={() => {
                     if (key === "⌫") {
                       setPin((p) => p.slice(0, -1));
-                    } else if (key !== "" && pin.length < 4) {
+                    } else if (key !== "" && pin.length < 5) {
                       const newPin = pin + key;
                       setPin(newPin);
-                      if (newPin.length === 4) {
+                      if (newPin.length === 5) {
                         setTimeout(() => handlePinLoginWithPin(newPin), 100);
                       }
                     }
@@ -198,6 +199,21 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {pin.length >= 4 && pin.length < 5 && (
+              <TouchableOpacity
+                style={[styles.loginBtn, { marginTop: 12 }]}
+                onPress={() => handlePinLoginWithPin(pin)}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.loginBtnText}>Login</Text>
+                )}
+              </TouchableOpacity>
+            )}
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -334,6 +350,13 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.65)",
     fontFamily: "Inter_400Regular",
     marginTop: 4,
+  },
+  orgName: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.45)",
+    fontFamily: "Inter_400Regular",
+    marginTop: 6,
+    letterSpacing: 0.2,
   },
   chooseContainer: {
     flex: 1,
