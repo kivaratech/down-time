@@ -22,7 +22,10 @@ router.post("/auth/restaurant/login", async (req, res) => {
   }
   const token = generateToken();
   await db.insert(restaurantSessionsTable).values({ token, restaurantId: restaurant.id });
-  res.json({ token, restaurant });
+  res.json({
+    token,
+    restaurant: { id: restaurant.id, name: restaurant.name, location: restaurant.location, createdAt: restaurant.createdAt },
+  });
 });
 
 router.post("/auth/supervisor/login", async (req, res) => {
@@ -60,7 +63,10 @@ router.get("/auth/me", async (req, res) => {
   const token = extractToken(req);
   const restaurant = await getRestaurantFromToken(token);
   if (restaurant) {
-    res.json({ type: "restaurant", restaurant });
+    res.json({
+      type: "restaurant",
+      restaurant: { id: restaurant.id, name: restaurant.name, location: restaurant.location, createdAt: restaurant.createdAt },
+    });
     return;
   }
   const supervisor = await getSupervisorFromToken(token);

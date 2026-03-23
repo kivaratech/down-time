@@ -25,6 +25,15 @@ import { useAuth } from "@/context/AuthContext";
 const AREAS = ["Front Counter", "Grill", "Back of House", "Technology"] as const;
 type Area = (typeof AREAS)[number];
 
+type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
+
+const AREA_ICONS: Record<Area, FeatherIconName> = {
+  "Front Counter": "coffee",
+  "Grill": "zap",
+  "Back of House": "package",
+  "Technology": "monitor",
+};
+
 type Step = "area" | "equipment" | "subitem" | "description" | "submitting" | "done";
 
 export default function ReportIssueScreen() {
@@ -257,24 +266,19 @@ export default function ReportIssueScreen() {
         {/* Area Step */}
         {step === "area" && (
           <View style={styles.optionsGrid}>
-            {AREAS.map((area) => {
-              const icon = area === "Front Counter" ? "coffee" :
-                area === "Grill" ? "zap" :
-                area === "Back of House" ? "package" : "monitor";
-              return (
-                <TouchableOpacity
-                  key={area}
-                  style={styles.areaCard}
-                  onPress={() => handleAreaSelect(area)}
-                  activeOpacity={0.75}
-                >
-                  <View style={styles.areaIcon}>
-                    <Feather name={icon as any} size={30} color={Colors.primary} />
-                  </View>
-                  <Text style={styles.areaName}>{area}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            {AREAS.map((area) => (
+              <TouchableOpacity
+                key={area}
+                style={styles.areaCard}
+                onPress={() => handleAreaSelect(area)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.areaIcon}>
+                  <Feather name={AREA_ICONS[area]} size={30} color={Colors.primary} />
+                </View>
+                <Text style={styles.areaName}>{area}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 

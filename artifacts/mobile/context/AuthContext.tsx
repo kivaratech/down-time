@@ -19,7 +19,6 @@ export type Restaurant = {
   id: number;
   name: string;
   location: string;
-  pin: string;
   createdAt: string;
 };
 
@@ -79,7 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e) {
-      // ignore
     } finally {
       setIsLoading(false);
     }
@@ -87,14 +85,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginRestaurant = useCallback(
     async (newToken: string, rest: Restaurant) => {
+      const { id, name, location, createdAt } = rest;
+      const safeRest: Restaurant = { id, name, location, createdAt };
       await AsyncStorage.multiSet([
         [TOKEN_KEY, newToken],
         [AUTH_TYPE_KEY, "restaurant"],
-        [RESTAURANT_KEY, JSON.stringify(rest)],
+        [RESTAURANT_KEY, JSON.stringify(safeRest)],
       ]);
       setToken(newToken);
       setAuthType("restaurant");
-      setRestaurant(rest);
+      setRestaurant(safeRest);
       setSupervisor(null);
     },
     []

@@ -264,56 +264,56 @@ export default function IssueDetailScreen() {
             <Feather name="chevron-down" size={16} color={statusStyle.color} />
           </TouchableOpacity>
 
+          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Assigned To</Text>
+          {editingAssignment ? (
+            <View style={styles.assignmentInputRow}>
+              <TextInput
+                style={styles.assignmentInput}
+                value={assignedToInput ?? ""}
+                onChangeText={setAssignedToInput}
+                placeholder="Team or person name..."
+                placeholderTextColor={Colors.textTertiary}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
+              />
+              <TouchableOpacity
+                style={styles.assignmentSaveBtn}
+                onPress={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
+                disabled={assignmentMutation.isPending}
+              >
+                {assignmentMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Feather name="check" size={16} color="#fff" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.assignmentCancelBtn}
+                onPress={() => { setEditingAssignment(false); setAssignedToInput(null); }}
+              >
+                <Feather name="x" size={16} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.assignmentDisplayBtn}
+              onPress={() => {
+                setAssignedToInput(issue.assignedTo ?? "");
+                setEditingAssignment(true);
+              }}
+              activeOpacity={0.75}
+            >
+              <Feather name="user" size={16} color={issue.assignedTo ? Colors.primary : Colors.textTertiary} />
+              <Text style={[styles.assignmentDisplayText, !issue.assignedTo && styles.assignmentPlaceholder]}>
+                {issue.assignedTo ?? "Unassigned — tap to assign"}
+              </Text>
+              <Feather name="edit-2" size={14} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
           {isSupervisor && (
             <>
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Assigned To</Text>
-              {editingAssignment ? (
-                <View style={styles.assignmentInputRow}>
-                  <TextInput
-                    style={styles.assignmentInput}
-                    value={assignedToInput ?? ""}
-                    onChangeText={setAssignedToInput}
-                    placeholder="Team or person name..."
-                    placeholderTextColor={Colors.textTertiary}
-                    autoFocus
-                    returnKeyType="done"
-                    onSubmitEditing={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
-                  />
-                  <TouchableOpacity
-                    style={styles.assignmentSaveBtn}
-                    onPress={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
-                    disabled={assignmentMutation.isPending}
-                  >
-                    {assignmentMutation.isPending ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Feather name="check" size={16} color="#fff" />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.assignmentCancelBtn}
-                    onPress={() => { setEditingAssignment(false); setAssignedToInput(null); }}
-                  >
-                    <Feather name="x" size={16} color={Colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.assignmentDisplayBtn}
-                  onPress={() => {
-                    setAssignedToInput(issue.assignedTo ?? "");
-                    setEditingAssignment(true);
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Feather name="user" size={16} color={issue.assignedTo ? Colors.primary : Colors.textTertiary} />
-                  <Text style={[styles.assignmentDisplayText, !issue.assignedTo && styles.assignmentPlaceholder]}>
-                    {issue.assignedTo ?? "Unassigned — tap to assign"}
-                  </Text>
-                  <Feather name="edit-2" size={14} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-
               <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Priority</Text>
               {(() => {
                 const prio = localPriority !== undefined ? localPriority : (issue.priority as IssuePriority);
