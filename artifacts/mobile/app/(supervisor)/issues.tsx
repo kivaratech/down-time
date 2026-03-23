@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import {
-  listIssues,
-  listRestaurants,
+  useListIssues,
+  useListRestaurants,
   type ListIssuesStatus,
   type ListIssuesCategory,
   type ListIssuesPriority,
@@ -20,7 +20,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import IssueCard from "@/components/IssueCard";
@@ -79,10 +78,7 @@ export default function SupervisorIssuesScreen() {
   const [assignedToFilter, setAssignedToFilter] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
 
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
-    queryFn: () => listRestaurants(),
-  });
+  const { data: restaurants } = useListRestaurants();
 
   const queryParams = {
     status: statusFilter,
@@ -93,10 +89,7 @@ export default function SupervisorIssuesScreen() {
     ...(assignedToFilter.trim() ? { assignedTo: assignedToFilter.trim() } : {}),
   };
 
-  const { data: issues, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["supervisor-issues", statusFilter, categoryFilter, priorityFilter, restaurantFilter, agingFilter, assignedToFilter],
-    queryFn: () => listIssues(queryParams),
-  });
+  const { data: issues, isLoading, refetch, isRefetching } = useListIssues(queryParams);
 
   const filteredIssues = areaFilter === "all"
     ? (issues ?? [])

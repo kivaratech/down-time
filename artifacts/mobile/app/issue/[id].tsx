@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import {
-  addComment,
-  getIssue,
-  updateIssue,
+  useGetIssue,
+  useUpdateIssue,
+  useAddComment,
+  getGetIssueQueryKey,
+  getListIssuesQueryKey,
+  getListRestaurantIssuesQueryKey,
   type UpdateIssueRequestStatus,
   type UpdateIssueRequestPriority,
 } from "@workspace/api-client-react";
@@ -23,7 +26,7 @@ import {
   Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -77,56 +80,54 @@ export default function IssueDetailScreen() {
   const [editingAssignment, setEditingAssignment] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const { data: issue, isLoading } = useQuery({
-    queryKey: ["issue", id],
-    queryFn: () => getIssue(Number(id)),
-    enabled: !!id,
+  const { data: issue, isLoading } = useGetIssue(Number(id), {
+    query: { enabled: !!id, queryKey: getGetIssueQueryKey(Number(id)) },
   });
 
-  const statusMutation = useMutation({
-    mutationFn: (status: IssueStatus) =>
-      updateIssue(Number(id), { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue", id] });
-      queryClient.invalidateQueries({ queryKey: ["restaurant-issues"] });
-      queryClient.invalidateQueries({ queryKey: ["supervisor-issues"] });
-      queryClient.invalidateQueries({ queryKey: ["supervisor-issues-all"] });
+  const statusMutation = useUpdateIssue({
+    mutation: {
+      onSuccess: (data) => {
+        setLocalStatus(data.status as IssueStatus);
+        queryClient.invalidateQueries({ queryKey: getGetIssueQueryKey(Number(id)) });
+        queryClient.invalidateQueries({ queryKey: getListIssuesQueryKey() });
+        if (restaurant) {
+          queryClient.invalidateQueries({ queryKey: getListRestaurantIssuesQueryKey(restaurant.id) });
+        }
+      },
     },
   });
 
-  const priorityMutation = useMutation({
-    mutationFn: (priority: IssuePriority) =>
-      updateIssue(Number(id), { priority }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue", id] });
-      queryClient.invalidateQueries({ queryKey: ["supervisor-issues"] });
-      queryClient.invalidateQueries({ queryKey: ["supervisor-issues-all"] });
+  const priorityMutation = useUpdateIssue({
+    mutation: {
+      onSuccess: (data) => {
+        setLocalPriority(data.priority as IssuePriority);
+        queryClient.invalidateQueries({ queryKey: getGetIssueQueryKey(Number(id)) });
+        queryClient.invalidateQueries({ queryKey: getListIssuesQueryKey() });
+      },
     },
   });
 
-  const assignmentMutation = useMutation({
-    mutationFn: (assignedTo: string | null) =>
-      updateIssue(Number(id), { assignedTo }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue", id] });
-      queryClient.invalidateQueries({ queryKey: ["supervisor-issues"] });
-      queryClient.invalidateQueries({ queryKey: ["supervisor-issues-all"] });
-      setEditingAssignment(false);
-      setAssignedToInput(null);
+  const assignmentMutation = useUpdateIssue({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetIssueQueryKey(Number(id)) });
+        queryClient.invalidateQueries({ queryKey: getListIssuesQueryKey() });
+        if (restaurant) {
+          queryClient.invalidateQueries({ queryKey: getListRestaurantIssuesQueryKey(restaurant.id) });
+        }
+        setEditingAssignment(false);
+        setAssignedToInput(null);
+      },
     },
   });
 
-  const commentMutation = useMutation({
-    mutationFn: (text: string) => {
-      const authorName = isSupervisor
-        ? (supervisor?.name ?? "Supervisor")
-        : (restaurant?.name ?? "Restaurant Staff");
-      return addComment(Number(id), { authorName, body: text });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue", id] });
-      setComment("");
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
+  const commentMutation = useAddComment({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetIssueQueryKey(Number(id)) });
+        setComment("");
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
+      },
     },
   });
 
@@ -149,33 +150,25 @@ export default function IssueDetailScreen() {
     setLocalStatus(newStatus);
     setShowStatusPicker(false);
     await Haptics.selectionAsync();
-    try {
-      await statusMutation.mutateAsync(newStatus);
-    } catch {
-      setLocalStatus(null);
-    }
+    statusMutation.mutate({ id: Number(id), data: { status: newStatus } });
   }
 
   async function handlePriorityChange(newPriority: IssuePriority) {
     setLocalPriority(newPriority);
     setShowPriorityPicker(false);
     await Haptics.selectionAsync();
-    try {
-      await priorityMutation.mutateAsync(newPriority);
-    } catch {
-      setLocalPriority(undefined);
-    }
+    priorityMutation.mutate({ id: Number(id), data: { priority: newPriority } });
   }
 
   async function handleAddComment() {
     if (!comment.trim() || addingComment) return;
     setAddingComment(true);
     await Haptics.selectionAsync();
-    try {
-      await commentMutation.mutateAsync(comment.trim());
-    } finally {
-      setAddingComment(false);
-    }
+    const authorName = isSupervisor
+      ? (supervisor?.name ?? "Supervisor")
+      : (restaurant?.name ?? "Restaurant Staff");
+    commentMutation.mutate({ id: Number(id), data: { authorName, body: comment.trim() } });
+    setAddingComment(false);
   }
 
   return (
@@ -275,11 +268,11 @@ export default function IssueDetailScreen() {
                 placeholderTextColor={Colors.textTertiary}
                 autoFocus
                 returnKeyType="done"
-                onSubmitEditing={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
+                onSubmitEditing={() => assignmentMutation.mutate({ id: Number(id), data: { assignedTo: assignedToInput?.trim() || null } })}
               />
               <TouchableOpacity
                 style={styles.assignmentSaveBtn}
-                onPress={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
+                onPress={() => assignmentMutation.mutate({ id: Number(id), data: { assignedTo: assignedToInput?.trim() || null } })}
                 disabled={assignmentMutation.isPending}
               >
                 {assignmentMutation.isPending ? (

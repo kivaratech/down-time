@@ -1,20 +1,21 @@
 import { Router, type IRouter } from "express";
 import { db, restaurantsTable, supervisorsTable, restaurantSessionsTable, supervisorSessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { generateToken, hashPassword, extractToken, getRestaurantFromToken, getSupervisorFromToken } from "../lib/auth";
+import { generateToken, verifyPassword, extractToken, getRestaurantFromToken, getSupervisorFromToken } from "../lib/auth";
+import { RestaurantLoginBody, SupervisorLoginBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 router.post("/auth/restaurant/login", async (req, res) => {
-  const { pin } = req.body;
-  if (!pin) {
+  const body = RestaurantLoginBody.safeParse(req.body);
+  if (!body.success) {
     res.status(400).json({ error: "PIN is required" });
     return;
   }
   const [restaurant] = await db
     .select()
     .from(restaurantsTable)
-    .where(eq(restaurantsTable.pin, String(pin)))
+    .where(eq(restaurantsTable.pin, body.data.pin))
     .limit(1);
   if (!restaurant) {
     res.status(401).json({ error: "Invalid PIN" });
@@ -29,17 +30,17 @@ router.post("/auth/restaurant/login", async (req, res) => {
 });
 
 router.post("/auth/supervisor/login", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
+  const body = SupervisorLoginBody.safeParse(req.body);
+  if (!body.success) {
     res.status(400).json({ error: "Username and password are required" });
     return;
   }
   const [supervisor] = await db
     .select()
     .from(supervisorsTable)
-    .where(eq(supervisorsTable.username, String(username)))
+    .where(eq(supervisorsTable.username, body.data.username))
     .limit(1);
-  if (!supervisor || supervisor.passwordHash !== hashPassword(String(password))) {
+  if (!supervisor || !verifyPassword(body.data.password, supervisor.passwordHash)) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }

@@ -1,5 +1,10 @@
 import { Feather } from "@expo/vector-icons";
-import { createIssue, getEquipment } from "@workspace/api-client-react";
+import {
+  useCreateIssue,
+  useGetEquipment,
+  getListRestaurantIssuesQueryKey,
+  getGetEquipmentQueryKey,
+} from "@workspace/api-client-react";
 import type { EquipmentArea, EquipmentItem } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -17,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -48,14 +53,33 @@ export default function ReportIssueScreen() {
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const { data: equipmentData } = useQuery({
-    queryKey: ["equipment", selectedArea],
-    queryFn: () => getEquipment({ area: selectedArea ?? undefined }),
-    enabled: !!selectedArea,
+  const createIssueMutation = useCreateIssue({
+    mutation: {
+      onSuccess: async () => {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (restaurant) {
+          queryClient.invalidateQueries({ queryKey: getListRestaurantIssuesQueryKey(restaurant.id) });
+        }
+        setSubmitted(true);
+      },
+      onError: async () => {
+        setError("Failed to submit. Please try again.");
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      },
+    },
   });
+
+  const { data: equipmentData } = useGetEquipment(
+    selectedArea ? { area: selectedArea } : undefined,
+    {
+      query: {
+        enabled: !!selectedArea,
+        queryKey: getGetEquipmentQueryKey(selectedArea ? { area: selectedArea } : undefined),
+      },
+    }
+  );
 
   const currentArea = equipmentData?.areas?.find((a) => a.area === selectedArea);
   const equipmentItems = currentArea?.items ?? [];
@@ -134,31 +158,22 @@ export default function ReportIssueScreen() {
     setStep("description");
   }
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!description.trim()) {
       setError("Please add a brief description.");
       return;
     }
-    setSubmitting(true);
     setError("");
-    try {
-      await createIssue({
+    createIssueMutation.mutate({
+      data: {
         restaurantId: restaurant!.id,
         area: selectedArea!,
         equipmentType: selectedEquipment!.name,
         subItem: selectedSubItem ?? undefined,
         description: description.trim(),
         assignedTo: assignedTo.trim() || undefined,
-      });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      queryClient.invalidateQueries({ queryKey: ["restaurant-issues"] });
-      setSubmitted(true);
-    } catch (e: any) {
-      setError("Failed to submit. Please try again.");
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setSubmitting(false);
-    }
+      },
+    });
   }
 
   if (submitted) {
@@ -376,12 +391,12 @@ export default function ReportIssueScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.submitBtn, (!description.trim() || submitting) && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, (!description.trim() || createIssueMutation.isPending) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
-              disabled={!description.trim() || submitting}
+              disabled={!description.trim() || createIssueMutation.isPending}
               activeOpacity={0.8}
             >
-              {submitting ? (
+              {createIssueMutation.isPending ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>

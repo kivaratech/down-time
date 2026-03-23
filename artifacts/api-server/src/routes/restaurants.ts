@@ -6,6 +6,7 @@ import {
   getRestaurantFromToken,
   getSupervisorFromToken,
 } from "../lib/auth";
+import { GetRestaurantParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -24,11 +25,12 @@ router.get("/restaurants", async (req, res) => {
 });
 
 router.get("/restaurants/:id", async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const params = GetRestaurantParams.safeParse(req.params);
+  if (!params.success) {
     res.status(400).json({ error: "Invalid restaurant ID" });
     return;
   }
+  const id = params.data.id;
 
   const token = extractToken(req);
   const restaurant = await getRestaurantFromToken(token);

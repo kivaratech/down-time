@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { listRestaurantIssues } from "@workspace/api-client-react";
+import { useListRestaurantIssues, getListRestaurantIssuesQueryKey } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -15,7 +15,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -41,11 +40,11 @@ export default function RestaurantHomeScreen() {
     isLoading,
     refetch,
     isRefetching,
-  } = useQuery({
-    queryKey: ["restaurant-issues", restaurant?.id, statusFilter],
-    queryFn: () =>
-      listRestaurantIssues(restaurant!.id, { status: statusFilter }),
-    enabled: !!restaurant,
+  } = useListRestaurantIssues(restaurant?.id ?? 0, { status: statusFilter }, {
+    query: {
+      enabled: !!restaurant,
+      queryKey: getListRestaurantIssuesQueryKey(restaurant?.id ?? 0, { status: statusFilter }),
+    },
   });
 
   const topPadding = Platform.OS === "web"

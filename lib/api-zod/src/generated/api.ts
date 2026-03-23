@@ -27,7 +27,6 @@ export const RestaurantLoginResponse = zod.object({
     id: zod.number(),
     name: zod.string(),
     location: zod.string(),
-    pin: zod.string(),
     createdAt: zod.date(),
   }),
 });
@@ -66,7 +65,6 @@ export const GetMeResponse = zod.object({
       id: zod.number(),
       name: zod.string(),
       location: zod.string(),
-      pin: zod.string(),
       createdAt: zod.date(),
     })
     .optional(),
@@ -86,7 +84,6 @@ export const ListRestaurantsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
   location: zod.string(),
-  pin: zod.string(),
   createdAt: zod.date(),
 });
 export const ListRestaurantsResponse = zod.array(ListRestaurantsResponseItem);
@@ -102,7 +99,6 @@ export const GetRestaurantResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
   location: zod.string(),
-  pin: zod.string(),
   createdAt: zod.date(),
 });
 
