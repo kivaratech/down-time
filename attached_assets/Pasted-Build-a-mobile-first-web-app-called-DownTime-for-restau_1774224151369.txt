@@ -1,0 +1,214 @@
+Build a mobile-first web app called “DownTime” for restaurant equipment and technology issue tracking.
+
+This app is designed for multi-unit restaurant operations. The goal is to make it extremely fast and simple for shift managers and GMs to report equipment or technology issues from a shared restaurant iPad, while giving supervisors a dashboard to monitor all open issues across multiple restaurants.
+
+Core product goals:
+- Reporting an issue should take about 10 seconds or less
+- The restaurant home screen should emphasize currently open issues
+- There should be a very obvious “Report Issue” action
+- Supervisors need visibility across all restaurants
+- The app should be internet-based only for V1, with real-time synced cloud data
+- Keep the UI simple, clean, and operationally focused
+- Do NOT overbuild or add extra features outside scope
+
+User roles:
+1. Restaurant User
+- Shared restaurant-level access
+- Can view open issues for that restaurant
+- Can report a new issue
+- Can update issue status
+- Can add comments
+
+2. Supervisor User
+- Individual login
+- Can view all restaurants
+- Can filter and review issues across the organization
+- Can optionally assign priority to issues, but priority should never be required
+- Can manage settings and restaurant equipment configuration
+
+V1 scope:
+This app is ONLY for tracking equipment and technology issues.
+Do NOT add messaging/chat, truck orders, schedules, recurring task management, analytics dashboards, or offline sync.
+
+Main screens required:
+
+1. Restaurant Home Screen
+- Show all open issues for that restaurant
+- Sort with the most important visibility first:
+  - optionally urgent-tagged items first
+  - then oldest open issues
+- Each issue card should show:
+  - equipment/item name
+  - area
+  - short description
+  - status
+  - age (example: “2 days old”)
+- Include a large and obvious “Report Issue” button
+
+2. Report Issue Flow
+Make this extremely fast and simple.
+Flow:
+- Select area:
+  - Front Counter
+  - Grill
+  - Back of House
+  - Technology
+- Select equipment type based on area
+- Select sub-item if needed
+- Add short description
+- Submit
+
+Do NOT require priority during creation.
+
+3. Issue Detail Screen
+- Show all issue information
+- Allow status updates:
+  - Open
+  - In Progress
+  - Waiting
+  - Resolved
+- Allow comments / updates
+- Allow optional assignment
+- Allow optional supervisor-only priority tagging
+
+4. Supervisor Dashboard
+- View all open issues across all restaurants
+- Group by restaurant
+- Show aging issues clearly
+- Allow filters:
+  - restaurant
+  - category
+  - status
+  - aging
+  - assigned to
+  - optional priority if set
+- Make this dashboard optimized for quick scanning
+
+Data structure requirements:
+Each issue should include:
+- id
+- restaurantId
+- category (equipment or technology)
+- area
+- equipmentType
+- subItem (nullable)
+- customLabel (nullable)
+- description
+- status
+- assignedTo (nullable)
+- priority (nullable, supervisor only)
+- createdAt
+- updatedAt
+- resolvedAt (nullable)
+
+Also support issue comments/history with timestamps.
+
+Restaurant setup requirements:
+- preload a strong default restaurant equipment template
+- allow restaurant configuration later in settings
+- support variable equipment counts, such as:
+  - fryer vats
+  - grill platens
+  - UHC slots
+  - named refrigerators/coolers
+- but keep the first version simple and usable immediately
+
+Initial equipment structure:
+Front Counter:
+- French Fry Fryer
+- Blended Ice Machine
+- Shake Machine
+- Frozen Carbonated Beverage Machine
+- Orange Juice Machine
+- Coffee Maker
+- Creamer Dispenser
+- Sugar Dispenser
+- Heated Landing Zone
+- Fry Warmer
+- Fry Hopper
+- Refrigerator
+- Other
+
+Grill:
+- Grill
+- Prep Table
+- Fish Steamer
+- Bun Toaster
+- Muffin Toaster
+- Q-ing Ovens
+- Convection Oven
+- Refrigerator
+- Freezer
+- Reach In Freezer
+- Moffat Cabinet
+- Meat Fryer
+- UHC
+- Other
+
+Back of House:
+- Dishwasher
+- 3 Compartment Sink
+- Walk In Cooler
+- Walk In Freezer
+- Carbonated Beverage / Multiplex Equipment
+- Other
+
+Technology:
+- Register
+- Grill Printer
+- Receipt Printer
+- KVS Controller
+- Monitor
+- eProduction
+- Office Printer
+- RHS Server
+- BOS Server
+- Kiosk
+- Card Reader
+- Digital Menu Board
+- Security Camera
+- Shelf Life Tablet
+- Food Safety Tablet
+- Cash Drawer
+- Bump Bar
+- Software
+- Other
+
+Sub-item behavior examples:
+- French Fry Fryer → Vat 1, 2, 3, 4
+- Meat Fryer → Vat 1, 2, 3, 4
+- Grill → Platen 1 through configurable max
+- UHC → Slot 1 through configurable max
+- Refrigerator / cooler items → support custom names
+
+Technical direction:
+- Build this as a mobile-first web app with a clean modern interface
+- Design it so it can later be wrapped for Apple App Store and Google Play
+- Use a simple but scalable architecture
+- Prefer a clean backend with persistent database storage
+- Include seeded demo data for 4 restaurants for testing
+- Include authentication for supervisor users
+- Restaurant shared access can be simpler than full individual authentication
+
+UI direction:
+- Clean, modern, operational
+- Fast load times
+- Large tap targets for iPad use
+- Minimal clutter
+- No unnecessary animations
+- No dark complex enterprise look
+- Focus on readability and speed
+
+Important constraints:
+- Keep V1 tightly scoped
+- Optimize for actual manager adoption
+- Minimize form friction
+- Do not add speculative features not listed above
+
+Please generate:
+1. the app structure
+2. database schema
+3. initial UI
+4. seeded data for four restaurants
+5. a clear explanation of the project file structure
+6. notes about what should be built next after the initial scaffold
