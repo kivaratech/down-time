@@ -15,11 +15,11 @@ export default function IndexScreen() {
   }
 
   if (authType === "restaurant") {
-    return <Redirect href="/(restaurant)/" />;
+    return <Redirect href="/(restaurant)" />;
   }
 
   if (authType === "supervisor") {
-    return <Redirect href="/(supervisor)/" />;
+    return <Redirect href="/(supervisor)" />;
   }
 
   return <Redirect href="/login" />;

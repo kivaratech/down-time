@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import {
   listIssues,
+  listRestaurants,
   type ListIssuesStatus,
   type ListIssuesCategory,
   type ListIssuesPriority,
@@ -14,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -57,7 +59,14 @@ const PRIORITY_OPTIONS: { key: PriorityFilter; label: string; color: string }[] 
   { key: "normal", label: "Normal", color: Colors.normal },
 ];
 
-type ActiveDropdown = "area" | "category" | "priority" | null;
+const AGING_OPTIONS: { key: number | null; label: string }[] = [
+  { key: null, label: "Any Age" },
+  { key: 3, label: "Older than 3 days" },
+  { key: 7, label: "Older than 7 days" },
+  { key: 14, label: "Older than 14 days" },
+];
+
+type ActiveDropdown = "area" | "category" | "priority" | "restaurant" | "aging" | null;
 
 export default function SupervisorIssuesScreen() {
   const insets = useSafeAreaInsets();
@@ -65,16 +74,27 @@ export default function SupervisorIssuesScreen() {
   const [areaFilter, setAreaFilter] = useState<AreaFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [restaurantFilter, setRestaurantFilter] = useState<number | null>(null);
+  const [agingFilter, setAgingFilter] = useState<number | null>(null);
+  const [assignedToFilter, setAssignedToFilter] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
+
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants"],
+    queryFn: () => listRestaurants(),
+  });
 
   const queryParams = {
     status: statusFilter,
     ...(categoryFilter !== "all" ? { category: categoryFilter } : {}),
     ...(priorityFilter !== "all" ? { priority: priorityFilter } : {}),
+    ...(restaurantFilter !== null ? { restaurantId: restaurantFilter } : {}),
+    ...(agingFilter !== null ? { agingDays: agingFilter } : {}),
+    ...(assignedToFilter.trim() ? { assignedTo: assignedToFilter.trim() } : {}),
   };
 
   const { data: issues, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["supervisor-issues", statusFilter, categoryFilter, priorityFilter],
+    queryKey: ["supervisor-issues", statusFilter, categoryFilter, priorityFilter, restaurantFilter, agingFilter, assignedToFilter],
     queryFn: () => listIssues(queryParams),
   });
 
@@ -90,11 +110,27 @@ export default function SupervisorIssuesScreen() {
     areaFilter !== "all",
     categoryFilter !== "all",
     priorityFilter !== "all",
+    restaurantFilter !== null,
+    agingFilter !== null,
+    assignedToFilter.trim().length > 0,
   ].filter(Boolean).length;
 
   function toggleDropdown(name: ActiveDropdown) {
     setActiveDropdown((prev) => (prev === name ? null : name));
   }
+
+  function clearAllFilters() {
+    setAreaFilter("all");
+    setCategoryFilter("all");
+    setPriorityFilter("all");
+    setRestaurantFilter(null);
+    setAgingFilter(null);
+    setAssignedToFilter("");
+    setActiveDropdown(null);
+  }
+
+  const selectedRestaurant = restaurants?.find((r) => r.id === restaurantFilter);
+  const selectedAging = AGING_OPTIONS.find((a) => a.key === agingFilter);
 
   return (
     <View style={styles.container}>
@@ -103,15 +139,7 @@ export default function SupervisorIssuesScreen() {
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>All Issues</Text>
           {activeFilterCount > 0 && (
-            <TouchableOpacity
-              style={styles.clearBtn}
-              onPress={() => {
-                setAreaFilter("all");
-                setCategoryFilter("all");
-                setPriorityFilter("all");
-                setActiveDropdown(null);
-              }}
-            >
+            <TouchableOpacity style={styles.clearBtn} onPress={clearAllFilters}>
               <Feather name="x" size={12} color={Colors.primary} />
               <Text style={styles.clearBtnText}>Clear filters</Text>
             </TouchableOpacity>
@@ -128,39 +156,39 @@ export default function SupervisorIssuesScreen() {
           {STATUS_FILTERS.map((f) => (
             <TouchableOpacity
               key={f.key}
-              style={[
-                styles.filterPill,
-                statusFilter === f.key && styles.filterPillActive,
-              ]}
+              style={[styles.filterPill, statusFilter === f.key && styles.filterPillActive]}
               onPress={() => setStatusFilter(f.key)}
             >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  statusFilter === f.key && styles.filterPillTextActive,
-                ]}
-              >
+              <Text style={[styles.filterPillText, statusFilter === f.key && styles.filterPillTextActive]}>
                 {f.label}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        {/* Secondary filter buttons */}
-        <View style={styles.secondaryFilters}>
+        {/* Secondary filters row 1 */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.secondaryScroll}
+          contentContainerStyle={styles.secondaryScrollContent}
+        >
+          <TouchableOpacity
+            style={[styles.secondaryFilterBtn, restaurantFilter !== null && styles.secondaryFilterBtnActive]}
+            onPress={() => toggleDropdown("restaurant")}
+          >
+            <Feather name="home" size={12} color={restaurantFilter !== null ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.secondaryFilterText, restaurantFilter !== null && styles.secondaryFilterTextActive]} numberOfLines={1}>
+              {selectedRestaurant ? selectedRestaurant.name : "Restaurant"}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.secondaryFilterBtn, areaFilter !== "all" && styles.secondaryFilterBtnActive]}
             onPress={() => toggleDropdown("area")}
           >
-            <Feather
-              name="map-pin"
-              size={12}
-              color={areaFilter !== "all" ? Colors.primary : Colors.textSecondary}
-            />
-            <Text
-              style={[styles.secondaryFilterText, areaFilter !== "all" && styles.secondaryFilterTextActive]}
-              numberOfLines={1}
-            >
+            <Feather name="map-pin" size={12} color={areaFilter !== "all" ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.secondaryFilterText, areaFilter !== "all" && styles.secondaryFilterTextActive]} numberOfLines={1}>
               {areaFilter === "all" ? "Area" : areaFilter}
             </Text>
           </TouchableOpacity>
@@ -169,15 +197,8 @@ export default function SupervisorIssuesScreen() {
             style={[styles.secondaryFilterBtn, categoryFilter !== "all" && styles.secondaryFilterBtnActive]}
             onPress={() => toggleDropdown("category")}
           >
-            <Feather
-              name="tag"
-              size={12}
-              color={categoryFilter !== "all" ? Colors.primary : Colors.textSecondary}
-            />
-            <Text
-              style={[styles.secondaryFilterText, categoryFilter !== "all" && styles.secondaryFilterTextActive]}
-              numberOfLines={1}
-            >
+            <Feather name="tag" size={12} color={categoryFilter !== "all" ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.secondaryFilterText, categoryFilter !== "all" && styles.secondaryFilterTextActive]} numberOfLines={1}>
               {categoryFilter === "all" ? "Category" : categoryFilter === "equipment" ? "Equipment" : "Technology"}
             </Text>
           </TouchableOpacity>
@@ -186,21 +207,64 @@ export default function SupervisorIssuesScreen() {
             style={[styles.secondaryFilterBtn, priorityFilter !== "all" && styles.secondaryFilterBtnActive]}
             onPress={() => toggleDropdown("priority")}
           >
-            <Feather
-              name="alert-triangle"
-              size={12}
-              color={priorityFilter !== "all" ? Colors.primary : Colors.textSecondary}
-            />
-            <Text
-              style={[styles.secondaryFilterText, priorityFilter !== "all" && styles.secondaryFilterTextActive]}
-              numberOfLines={1}
-            >
+            <Feather name="alert-triangle" size={12} color={priorityFilter !== "all" ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.secondaryFilterText, priorityFilter !== "all" && styles.secondaryFilterTextActive]} numberOfLines={1}>
               {priorityFilter === "all" ? "Priority" : priorityFilter.charAt(0).toUpperCase() + priorityFilter.slice(1)}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryFilterBtn, agingFilter !== null && styles.secondaryFilterBtnActive]}
+            onPress={() => toggleDropdown("aging")}
+          >
+            <Feather name="clock" size={12} color={agingFilter !== null ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.secondaryFilterText, agingFilter !== null && styles.secondaryFilterTextActive]} numberOfLines={1}>
+              {agingFilter !== null ? `>${agingFilter}d old` : "Age"}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Assigned To input */}
+        <View style={styles.assignedToRow}>
+          <Feather name="user" size={14} color={assignedToFilter ? Colors.primary : Colors.textTertiary} style={styles.assignedToIcon} />
+          <TextInput
+            style={styles.assignedToInput}
+            value={assignedToFilter}
+            onChangeText={setAssignedToFilter}
+            placeholder="Filter by assignee..."
+            placeholderTextColor={Colors.textTertiary}
+            returnKeyType="search"
+          />
+          {assignedToFilter.length > 0 && (
+            <TouchableOpacity onPress={() => setAssignedToFilter("")} style={styles.assignedToClear}>
+              <Feather name="x" size={14} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Dropdown: Area */}
+        {/* Dropdowns */}
+        {activeDropdown === "restaurant" && (
+          <View style={styles.dropdown}>
+            <TouchableOpacity
+              style={[styles.dropdownItem, restaurantFilter === null && styles.dropdownItemActive]}
+              onPress={() => { setRestaurantFilter(null); setActiveDropdown(null); }}
+            >
+              <Text style={[styles.dropdownItemText, restaurantFilter === null && styles.dropdownItemTextActive]}>All Restaurants</Text>
+              {restaurantFilter === null && <Feather name="check" size={14} color={Colors.primary} />}
+            </TouchableOpacity>
+            {(restaurants ?? []).map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={[styles.dropdownItem, restaurantFilter === r.id && styles.dropdownItemActive]}
+                onPress={() => { setRestaurantFilter(r.id); setActiveDropdown(null); }}
+              >
+                <Text style={[styles.dropdownItemText, restaurantFilter === r.id && styles.dropdownItemTextActive]}>{r.name}</Text>
+                {restaurantFilter === r.id && <Feather name="check" size={14} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {activeDropdown === "area" && (
           <View style={styles.dropdown}>
             {AREA_OPTIONS.map((f) => (
@@ -209,16 +273,13 @@ export default function SupervisorIssuesScreen() {
                 style={[styles.dropdownItem, areaFilter === f.key && styles.dropdownItemActive]}
                 onPress={() => { setAreaFilter(f.key); setActiveDropdown(null); }}
               >
-                <Text style={[styles.dropdownItemText, areaFilter === f.key && styles.dropdownItemTextActive]}>
-                  {f.label}
-                </Text>
+                <Text style={[styles.dropdownItemText, areaFilter === f.key && styles.dropdownItemTextActive]}>{f.label}</Text>
                 {areaFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* Dropdown: Category */}
         {activeDropdown === "category" && (
           <View style={styles.dropdown}>
             {CATEGORY_OPTIONS.map((f) => (
@@ -227,16 +288,13 @@ export default function SupervisorIssuesScreen() {
                 style={[styles.dropdownItem, categoryFilter === f.key && styles.dropdownItemActive]}
                 onPress={() => { setCategoryFilter(f.key); setActiveDropdown(null); }}
               >
-                <Text style={[styles.dropdownItemText, categoryFilter === f.key && styles.dropdownItemTextActive]}>
-                  {f.label}
-                </Text>
+                <Text style={[styles.dropdownItemText, categoryFilter === f.key && styles.dropdownItemTextActive]}>{f.label}</Text>
                 {categoryFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* Dropdown: Priority */}
         {activeDropdown === "priority" && (
           <View style={styles.dropdown}>
             {PRIORITY_OPTIONS.map((f) => (
@@ -245,10 +303,25 @@ export default function SupervisorIssuesScreen() {
                 style={[styles.dropdownItem, priorityFilter === f.key && styles.dropdownItemActive]}
                 onPress={() => { setPriorityFilter(f.key); setActiveDropdown(null); }}
               >
-                <Text style={[styles.dropdownItemText, priorityFilter === f.key && styles.dropdownItemTextActive, { color: f.key !== "all" ? f.color : Colors.text }]}>
+                <Text style={[styles.dropdownItemText, priorityFilter === f.key && styles.dropdownItemTextActive, f.key !== "all" && { color: f.color }]}>
                   {f.label}
                 </Text>
                 {priorityFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {activeDropdown === "aging" && (
+          <View style={styles.dropdown}>
+            {AGING_OPTIONS.map((f) => (
+              <TouchableOpacity
+                key={String(f.key)}
+                style={[styles.dropdownItem, agingFilter === f.key && styles.dropdownItemActive]}
+                onPress={() => { setAgingFilter(f.key); setActiveDropdown(null); }}
+              >
+                <Text style={[styles.dropdownItemText, agingFilter === f.key && styles.dropdownItemTextActive]}>{f.label}</Text>
+                {agingFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -259,17 +332,10 @@ export default function SupervisorIssuesScreen() {
       <FlatList
         data={filteredIssues}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: insets.bottom + 100 },
-        ]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
-            tintColor={Colors.primary}
-          />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />
         }
         renderItem={({ item }) => <IssueCard issue={item} showRestaurant />}
         ListEmptyComponent={
@@ -283,9 +349,7 @@ export default function SupervisorIssuesScreen() {
                 <Feather name="check-circle" size={36} color={Colors.success} />
               </View>
               <Text style={styles.emptyTitle}>No issues found</Text>
-              <Text style={styles.emptySubtitle}>
-                Try adjusting your filters to see more results.
-              </Text>
+              <Text style={styles.emptySubtitle}>Try adjusting your filters to see more results.</Text>
             </View>
           )
         }
@@ -371,11 +435,12 @@ const styles = StyleSheet.create({
   filterPillTextActive: {
     color: "#FFFFFF",
   },
-  secondaryFilters: {
-    flexDirection: "row",
+  secondaryScroll: {
+    marginBottom: 10,
+  },
+  secondaryScrollContent: {
     gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 4,
+    paddingRight: 8,
   },
   secondaryFilterBtn: {
     flexDirection: "row",
@@ -399,6 +464,29 @@ const styles = StyleSheet.create({
   },
   secondaryFilterTextActive: {
     color: Colors.primary,
+  },
+  assignedToRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 10,
+    marginBottom: 4,
+  },
+  assignedToIcon: {
+    marginRight: 6,
+  },
+  assignedToInput: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: "Inter_400Regular",
+    paddingVertical: 9,
+  },
+  assignedToClear: {
+    padding: 4,
   },
   dropdown: {
     backgroundColor: Colors.surface,
