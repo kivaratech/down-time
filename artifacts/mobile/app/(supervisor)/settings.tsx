@@ -62,7 +62,9 @@ export default function SettingsScreen() {
     }, [loadItems])
   );
 
-  const areaItems = items.filter((i) => i.area === selectedArea);
+  const areaItems = items
+    .filter((i) => i.area === selectedArea)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleRename = async () => {
     if (!editingItem || !editName.trim()) return;
