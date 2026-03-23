@@ -2,7 +2,9 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+**DownTime** — Restaurant equipment and technology issue tracking app. iPad-optimized for shared restaurant use. Full-stack: Expo mobile app + Express API + PostgreSQL via Drizzle ORM.
+
+pnpm workspace monorepo using TypeScript.
 
 ## Stack
 
@@ -15,82 +17,128 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Mobile**: Expo (React Native) + Expo Router
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
+├── artifacts/
+│   ├── api-server/         # Express API server (port 8080)
+│   └── mobile/             # Expo app
+├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
+│   ├── api-client-react/   # Generated React Query hooks + custom fetch
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+└── pnpm-workspace.yaml
 ```
+
+## DownTime App
+
+### Features
+
+- **Restaurant PIN login**: Shared iPad access with 4-digit PIN
+- **Supervisor login**: Individual username/password
+- **Restaurant home**: Issues list with status filters (Open / In Progress / Waiting / Resolved / All)
+- **Report issue flow**: Multi-step: Area → Equipment → Sub-item → Description → Submit
+- **Issue detail**: Status update, priority (supervisor only), comments
+- **Supervisor dashboard**: Per-restaurant stats + issue summaries
+- **Supervisor issues**: Filterable list across all restaurants with area filter
+
+### Auth
+
+- Sessions stored in AsyncStorage (persistent across app restarts)
+- Bearer token via `setAuthTokenGetter` in the API client
+- Token set on root `_layout.tsx` load
+
+### Seed Data
+
+| Restaurant | PIN | Location |
+|---|---|---|
+| Restaurant 1 | 1234 | Downtown |
+| Restaurant 2 | 5678 | Uptown |
+| Restaurant 3 | 4321 | Midtown |
+| Restaurant 4 | 9876 | Westside |
+
+| Supervisor | Username | Password |
+|---|---|---|
+| Admin | admin | admin123 |
+| Supervisor | supervisor | pass123 |
+
+### Navigation (Expo Router)
+
+```
+app/
+  _layout.tsx         ← Root stack + QueryClient + AuthProvider
+  index.tsx           ← Auth redirect (restaurant/supervisor/login)
+  login.tsx           ← Login screen (choose → PIN or supervisor form)
+  (restaurant)/
+    _layout.tsx       ← Stack layout
+    index.tsx         ← Issues home + Report Issue FAB
+    report.tsx        ← Multi-step report issue flow
+  (supervisor)/
+    _layout.tsx       ← Tab layout (Dashboard + All Issues)
+    index.tsx         ← Supervisor dashboard
+    issues.tsx        ← All issues with filters
+  issue/[id].tsx      ← Shared issue detail (status/priority/comments)
+```
+
+### Colors
+
+Flat color object in `constants/colors.ts`:
+- `primary`: `#0F3460` (deep navy)
+- `accent`: `#E63946` (red/alert)
+- `success`: `#2D9651`
+- `warning`: `#E6A817`
+- Status colors: openStatus, inProgressStatus, waitingStatus, resolvedStatus
+- Priority colors: urgent, high, normal (each with `*Bg` variant)
+
+### API Routes
+
+| Method | Path | Description |
+|---|---|---|
+| POST | /api/auth/restaurant/login | PIN login → token + restaurant |
+| POST | /api/auth/supervisor/login | Cred login → token + supervisor |
+| POST | /api/auth/logout | Clear session |
+| GET | /api/auth/me | Current user info |
+| GET | /api/restaurants | List all (supervisor) |
+| GET | /api/restaurants/:id/issues | Restaurant issues with status filter |
+| GET | /api/issues | All issues (supervisor) with filters |
+| POST | /api/issues | Create issue |
+| GET | /api/issues/:id | Issue detail with comments |
+| PATCH | /api/issues/:id | Update status/priority/assignedTo |
+| POST | /api/issues/:id/comments | Add comment { authorName, body } |
+| GET | /api/equipment | Equipment catalog by area |
+
+### Issue Schema
+
+- `area`: Front Counter / Grill / Back of House / Technology
+- `category`: auto-derived (Front Counter/Grill/Back of House → equipment; Technology → technology)
+- `status`: open / in_progress / waiting / resolved
+- `priority`: urgent / high / normal / null (supervisor-only)
+- Sort: priority desc (urgent first), then createdAt asc (oldest first)
 
 ## TypeScript & Composite Projects
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root** — run `pnpm run typecheck`
+- **`emitDeclarationOnly`** — only `.d.ts` files emitted during typecheck
+- **Project references** — cross-package imports need references in tsconfig
 
-## Root Scripts
+## Key Commands
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+```bash
+# Run development
+pnpm --filter @workspace/api-server run dev   # API on port 8080
+pnpm --filter @workspace/mobile run dev       # Expo (port from PORT env)
 
-## Packages
+# Database
+pnpm --filter @workspace/db run push          # Push schema to DB
+pnpm --filter @workspace/scripts run seed     # Seed demo data
 
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+# Code generation
+pnpm --filter @workspace/api-spec run codegen # Regenerate API client
+```

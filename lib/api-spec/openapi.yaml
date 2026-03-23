@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: DownTime — Restaurant Equipment Issue Tracker API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: restaurants
+    description: Restaurant operations
+  - name: issues
+    description: Issue tracking
+  - name: comments
+    description: Issue comments
+  - name: equipment
+    description: Equipment catalog
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,325 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/restaurant/login:
+    post:
+      operationId: restaurantLogin
+      tags: [auth]
+      summary: Restaurant PIN login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestaurantLoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestaurantLoginResponse"
+        "401":
+          description: Invalid PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/supervisor/login:
+    post:
+      operationId: supervisorLogin
+      tags: [auth]
+      summary: Supervisor login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupervisorLoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupervisorLoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/supervisor/logout:
+    post:
+      operationId: supervisorLogout
+      tags: [auth]
+      summary: Supervisor logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current session info
+      responses:
+        "200":
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /restaurants:
+    get:
+      operationId: listRestaurants
+      tags: [restaurants]
+      summary: List all restaurants (supervisor only)
+      responses:
+        "200":
+          description: List of restaurants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Restaurant"
+
+  /restaurants/{id}:
+    get:
+      operationId: getRestaurant
+      tags: [restaurants]
+      summary: Get a restaurant by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Restaurant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Restaurant"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /restaurants/{id}/issues:
+    get:
+      operationId: listRestaurantIssues
+      tags: [issues]
+      summary: List open issues for a restaurant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, waiting, resolved, all]
+      responses:
+        "200":
+          description: List of issues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Issue"
+
+  /issues:
+    get:
+      operationId: listIssues
+      tags: [issues]
+      summary: List all issues across all restaurants (supervisor)
+      parameters:
+        - name: restaurantId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, waiting, resolved, all]
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [equipment, technology]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [urgent, high, normal]
+        - name: assignedTo
+          in: query
+          schema:
+            type: string
+        - name: agingDays
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of issues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Issue"
+    post:
+      operationId: createIssue
+      tags: [issues]
+      summary: Create a new issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIssueRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Issue"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /issues/{id}:
+    get:
+      operationId: getIssue
+      tags: [issues]
+      summary: Get an issue by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueWithComments"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateIssue
+      tags: [issues]
+      summary: Update an issue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIssueRequest"
+      responses:
+        "200":
+          description: Updated issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Issue"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /issues/{id}/comments:
+    post:
+      operationId: addComment
+      tags: [comments]
+      summary: Add a comment to an issue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentRequest"
+      responses:
+        "201":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /equipment:
+    get:
+      operationId: getEquipment
+      tags: [equipment]
+      summary: Get equipment list, optionally filtered by area
+      parameters:
+        - name: area
+          in: query
+          schema:
+            type: string
+            enum: [Front Counter, Grill, Back of House, Technology]
+      responses:
+        "200":
+          description: Equipment catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipmentCatalog"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +358,266 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required: [success]
+
+    RestaurantLoginRequest:
+      type: object
+      properties:
+        pin:
+          type: string
+      required: [pin]
+
+    RestaurantLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        restaurant:
+          $ref: "#/components/schemas/Restaurant"
+      required: [token, restaurant]
+
+    SupervisorLoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    SupervisorLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        supervisor:
+          $ref: "#/components/schemas/Supervisor"
+      required: [token, supervisor]
+
+    Supervisor:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+      required: [id, username, name]
+
+    MeResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [restaurant, supervisor]
+        restaurant:
+          $ref: "#/components/schemas/Restaurant"
+        supervisor:
+          $ref: "#/components/schemas/Supervisor"
+      required: [type]
+
+    Restaurant:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        pin:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, location, pin, createdAt]
+
+    Issue:
+      type: object
+      properties:
+        id:
+          type: integer
+        restaurantId:
+          type: integer
+        restaurantName:
+          type: string
+        area:
+          type: string
+          enum: [Front Counter, Grill, Back of House, Technology]
+        category:
+          type: string
+          enum: [equipment, technology]
+        equipmentType:
+          type: string
+        subItem:
+          type: string
+          nullable: true
+        customLabel:
+          type: string
+          nullable: true
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, waiting, resolved]
+        assignedTo:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          enum: [urgent, high, normal]
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        commentCount:
+          type: integer
+      required:
+        [
+          id,
+          restaurantId,
+          restaurantName,
+          area,
+          category,
+          equipmentType,
+          description,
+          status,
+          createdAt,
+          updatedAt,
+          commentCount,
+        ]
+
+    IssueWithComments:
+      allOf:
+        - $ref: "#/components/schemas/Issue"
+        - type: object
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: "#/components/schemas/Comment"
+          required: [comments]
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        issueId:
+          type: integer
+        authorName:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, issueId, authorName, body, createdAt]
+
+    CreateIssueRequest:
+      type: object
+      properties:
+        restaurantId:
+          type: integer
+        area:
+          type: string
+          enum: [Front Counter, Grill, Back of House, Technology]
+        equipmentType:
+          type: string
+        subItem:
+          type: string
+          nullable: true
+        customLabel:
+          type: string
+          nullable: true
+        description:
+          type: string
+        assignedTo:
+          type: string
+          nullable: true
+      required: [restaurantId, area, equipmentType, description]
+
+    UpdateIssueRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, in_progress, waiting, resolved]
+        assignedTo:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          enum: [urgent, high, normal]
+          nullable: true
+        description:
+          type: string
+
+    CreateCommentRequest:
+      type: object
+      properties:
+        authorName:
+          type: string
+        body:
+          type: string
+      required: [authorName, body]
+
+    EquipmentItem:
+      type: object
+      properties:
+        name:
+          type: string
+        subItems:
+          type: array
+          items:
+            type: string
+          nullable: true
+        supportsCustomLabel:
+          type: boolean
+      required: [name]
+
+    EquipmentArea:
+      type: object
+      properties:
+        area:
+          type: string
+          enum: [Front Counter, Grill, Back of House, Technology]
+        category:
+          type: string
+          enum: [equipment, technology]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EquipmentItem"
+      required: [area, category, items]
+
+    EquipmentCatalog:
+      type: object
+      properties:
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/EquipmentArea"
+      required: [areas]
