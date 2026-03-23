@@ -2,8 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import {
   listIssues,
   type ListIssuesStatus,
+  type ListIssuesCategory,
+  type ListIssuesPriority,
 } from "@workspace/api-client-react";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -23,6 +25,8 @@ import IssueCard from "@/components/IssueCard";
 
 type StatusFilter = ListIssuesStatus | "all";
 type AreaFilter = "all" | "Front Counter" | "Grill" | "Back of House" | "Technology";
+type CategoryFilter = ListIssuesCategory | "all";
+type PriorityFilter = ListIssuesPriority | "all";
 
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "open", label: "Open" },
@@ -32,7 +36,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
-const AREA_FILTERS: { key: AreaFilter; label: string }[] = [
+const AREA_OPTIONS: { key: AreaFilter; label: string }[] = [
   { key: "all", label: "All Areas" },
   { key: "Front Counter", label: "Front Counter" },
   { key: "Grill", label: "Grill" },
@@ -40,26 +44,57 @@ const AREA_FILTERS: { key: AreaFilter; label: string }[] = [
   { key: "Technology", label: "Technology" },
 ];
 
+const CATEGORY_OPTIONS: { key: CategoryFilter; label: string }[] = [
+  { key: "all", label: "All Categories" },
+  { key: "equipment", label: "Equipment" },
+  { key: "technology", label: "Technology" },
+];
+
+const PRIORITY_OPTIONS: { key: PriorityFilter; label: string; color: string }[] = [
+  { key: "all", label: "Any Priority", color: Colors.textSecondary },
+  { key: "urgent", label: "Urgent", color: Colors.urgent },
+  { key: "high", label: "High", color: Colors.high },
+  { key: "normal", label: "Normal", color: Colors.normal },
+];
+
+type ActiveDropdown = "area" | "category" | "priority" | null;
+
 export default function SupervisorIssuesScreen() {
   const insets = useSafeAreaInsets();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [areaFilter, setAreaFilter] = useState<AreaFilter>("all");
-  const [showAreaFilter, setShowAreaFilter] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
+
+  const queryParams = {
+    status: statusFilter,
+    ...(categoryFilter !== "all" ? { category: categoryFilter } : {}),
+    ...(priorityFilter !== "all" ? { priority: priorityFilter } : {}),
+  };
 
   const { data: issues, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["supervisor-issues", statusFilter],
-    queryFn: () => listIssues({ status: statusFilter }),
+    queryKey: ["supervisor-issues", statusFilter, categoryFilter, priorityFilter],
+    queryFn: () => listIssues(queryParams),
   });
 
-  const filteredIssues = useMemo(() => {
-    if (!issues) return [];
-    if (areaFilter === "all") return issues;
-    return issues.filter((i) => i.area === areaFilter);
-  }, [issues, areaFilter]);
+  const filteredIssues = areaFilter === "all"
+    ? (issues ?? [])
+    : (issues ?? []).filter((i) => i.area === areaFilter);
 
   const topPadding = Platform.OS === "web"
     ? insets.top + 67
     : insets.top;
+
+  const activeFilterCount = [
+    areaFilter !== "all",
+    categoryFilter !== "all",
+    priorityFilter !== "all",
+  ].filter(Boolean).length;
+
+  function toggleDropdown(name: ActiveDropdown) {
+    setActiveDropdown((prev) => (prev === name ? null : name));
+  }
 
   return (
     <View style={styles.container}>
@@ -67,28 +102,20 @@ export default function SupervisorIssuesScreen() {
       <View style={[styles.header, { paddingTop: topPadding + 20 }]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>All Issues</Text>
-          <TouchableOpacity
-            style={[
-              styles.areaFilterBtn,
-              areaFilter !== "all" && styles.areaFilterBtnActive,
-            ]}
-            onPress={() => setShowAreaFilter(!showAreaFilter)}
-          >
-            <Feather
-              name="filter"
-              size={14}
-              color={areaFilter !== "all" ? Colors.primary : Colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.areaFilterText,
-                areaFilter !== "all" && styles.areaFilterTextActive,
-              ]}
-              numberOfLines={1}
+          {activeFilterCount > 0 && (
+            <TouchableOpacity
+              style={styles.clearBtn}
+              onPress={() => {
+                setAreaFilter("all");
+                setCategoryFilter("all");
+                setPriorityFilter("all");
+                setActiveDropdown(null);
+              }}
             >
-              {areaFilter === "all" ? "Area" : areaFilter}
-            </Text>
-          </TouchableOpacity>
+              <Feather name="x" size={12} color={Colors.primary} />
+              <Text style={styles.clearBtnText}>Clear filters</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Status pills */}
@@ -119,32 +146,109 @@ export default function SupervisorIssuesScreen() {
           ))}
         </ScrollView>
 
-        {/* Area filter dropdown */}
-        {showAreaFilter && (
-          <View style={styles.areaDropdown}>
-            {AREA_FILTERS.map((f) => (
+        {/* Secondary filter buttons */}
+        <View style={styles.secondaryFilters}>
+          <TouchableOpacity
+            style={[styles.secondaryFilterBtn, areaFilter !== "all" && styles.secondaryFilterBtnActive]}
+            onPress={() => toggleDropdown("area")}
+          >
+            <Feather
+              name="map-pin"
+              size={12}
+              color={areaFilter !== "all" ? Colors.primary : Colors.textSecondary}
+            />
+            <Text
+              style={[styles.secondaryFilterText, areaFilter !== "all" && styles.secondaryFilterTextActive]}
+              numberOfLines={1}
+            >
+              {areaFilter === "all" ? "Area" : areaFilter}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryFilterBtn, categoryFilter !== "all" && styles.secondaryFilterBtnActive]}
+            onPress={() => toggleDropdown("category")}
+          >
+            <Feather
+              name="tag"
+              size={12}
+              color={categoryFilter !== "all" ? Colors.primary : Colors.textSecondary}
+            />
+            <Text
+              style={[styles.secondaryFilterText, categoryFilter !== "all" && styles.secondaryFilterTextActive]}
+              numberOfLines={1}
+            >
+              {categoryFilter === "all" ? "Category" : categoryFilter === "equipment" ? "Equipment" : "Technology"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryFilterBtn, priorityFilter !== "all" && styles.secondaryFilterBtnActive]}
+            onPress={() => toggleDropdown("priority")}
+          >
+            <Feather
+              name="alert-triangle"
+              size={12}
+              color={priorityFilter !== "all" ? Colors.primary : Colors.textSecondary}
+            />
+            <Text
+              style={[styles.secondaryFilterText, priorityFilter !== "all" && styles.secondaryFilterTextActive]}
+              numberOfLines={1}
+            >
+              {priorityFilter === "all" ? "Priority" : priorityFilter.charAt(0).toUpperCase() + priorityFilter.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Dropdown: Area */}
+        {activeDropdown === "area" && (
+          <View style={styles.dropdown}>
+            {AREA_OPTIONS.map((f) => (
               <TouchableOpacity
                 key={f.key}
-                style={[
-                  styles.areaDropdownItem,
-                  areaFilter === f.key && styles.areaDropdownItemActive,
-                ]}
-                onPress={() => {
-                  setAreaFilter(f.key);
-                  setShowAreaFilter(false);
-                }}
+                style={[styles.dropdownItem, areaFilter === f.key && styles.dropdownItemActive]}
+                onPress={() => { setAreaFilter(f.key); setActiveDropdown(null); }}
               >
-                <Text
-                  style={[
-                    styles.areaDropdownText,
-                    areaFilter === f.key && styles.areaDropdownTextActive,
-                  ]}
-                >
+                <Text style={[styles.dropdownItemText, areaFilter === f.key && styles.dropdownItemTextActive]}>
                   {f.label}
                 </Text>
-                {areaFilter === f.key && (
-                  <Feather name="check" size={14} color={Colors.primary} />
-                )}
+                {areaFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Dropdown: Category */}
+        {activeDropdown === "category" && (
+          <View style={styles.dropdown}>
+            {CATEGORY_OPTIONS.map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.dropdownItem, categoryFilter === f.key && styles.dropdownItemActive]}
+                onPress={() => { setCategoryFilter(f.key); setActiveDropdown(null); }}
+              >
+                <Text style={[styles.dropdownItemText, categoryFilter === f.key && styles.dropdownItemTextActive]}>
+                  {f.label}
+                </Text>
+                {categoryFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Dropdown: Priority */}
+        {activeDropdown === "priority" && (
+          <View style={styles.dropdown}>
+            {PRIORITY_OPTIONS.map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.dropdownItem, priorityFilter === f.key && styles.dropdownItemActive]}
+                onPress={() => { setPriorityFilter(f.key); setActiveDropdown(null); }}
+              >
+                <Text style={[styles.dropdownItemText, priorityFilter === f.key && styles.dropdownItemTextActive, { color: f.key !== "all" ? f.color : Colors.text }]}>
+                  {f.label}
+                </Text>
+                {priorityFilter === f.key && <Feather name="check" size={14} color={Colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -225,33 +329,22 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.3,
   },
-  areaFilterBtn: {
+  clearBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    maxWidth: 140,
-  },
-  areaFilterBtnActive: {
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
     backgroundColor: Colors.primary + "10",
-    borderColor: Colors.primary + "40",
   },
-  areaFilterText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-    flexShrink: 1,
-  },
-  areaFilterTextActive: {
+  clearBtnText: {
+    fontSize: 12,
     color: Colors.primary,
+    fontFamily: "Inter_500Medium",
   },
   pillScroll: {
-    marginBottom: 4,
+    marginBottom: 10,
   },
   pillScrollContent: {
     gap: 8,
@@ -278,7 +371,36 @@ const styles = StyleSheet.create({
   filterPillTextActive: {
     color: "#FFFFFF",
   },
-  areaDropdown: {
+  secondaryFilters: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 4,
+  },
+  secondaryFilterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  secondaryFilterBtnActive: {
+    backgroundColor: Colors.primary + "10",
+    borderColor: Colors.primary + "40",
+  },
+  secondaryFilterText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+  },
+  secondaryFilterTextActive: {
+    color: Colors.primary,
+  },
+  dropdown: {
     backgroundColor: Colors.surface,
     borderRadius: 14,
     borderWidth: 1,
@@ -291,7 +413,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  areaDropdownItem: {
+  dropdownItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -300,15 +422,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
-  areaDropdownItemActive: {
+  dropdownItemActive: {
     backgroundColor: Colors.background,
   },
-  areaDropdownText: {
+  dropdownItemText: {
     fontSize: 15,
     color: Colors.text,
     fontFamily: "Inter_400Regular",
   },
-  areaDropdownTextActive: {
+  dropdownItemTextActive: {
     color: Colors.primary,
     fontFamily: "Inter_600SemiBold",
   },

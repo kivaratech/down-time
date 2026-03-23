@@ -7,7 +7,11 @@ import {
   supervisorSessionsTable,
   supervisorsTable,
 } from "@workspace/db/schema";
+
 import crypto from "crypto";
+
+type InsertIssueWithTimestamps = Omit<typeof issuesTable.$inferInsert, "id">;
+type InsertComment = typeof commentsTable.$inferInsert;
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
@@ -64,7 +68,7 @@ async function seed() {
     return d;
   };
 
-  const issueSeeds = [
+  const issueSeeds: InsertIssueWithTimestamps[] = [
     // Maple Street
     {
       restaurantId: restaurants[0].id,
@@ -206,12 +210,12 @@ async function seed() {
 
   const issues = await db
     .insert(issuesTable)
-    .values(issueSeeds as any)
+    .values(issueSeeds)
     .returning();
   console.log(`✅ Created ${issues.length} issues`);
 
   // Seed some comments
-  const commentSeeds = [
+  const commentSeeds: InsertComment[] = [
     {
       issueId: issues[1].id,
       authorName: "Maria G.",
@@ -244,7 +248,7 @@ async function seed() {
     },
   ];
 
-  await db.insert(commentsTable).values(commentSeeds as any);
+  await db.insert(commentsTable).values(commentSeeds);
   console.log(`✅ Created ${commentSeeds.length} comments`);
 
   console.log("✅ Seed complete!");

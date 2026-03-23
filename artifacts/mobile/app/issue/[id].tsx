@@ -73,6 +73,8 @@ export default function IssueDetailScreen() {
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [localStatus, setLocalStatus] = useState<IssueStatus | null>(null);
   const [localPriority, setLocalPriority] = useState<IssuePriority | undefined>(undefined);
+  const [assignedToInput, setAssignedToInput] = useState<string | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const { data: issue, isLoading } = useQuery({
@@ -99,6 +101,18 @@ export default function IssueDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
       queryClient.invalidateQueries({ queryKey: ["supervisor-issues"] });
       queryClient.invalidateQueries({ queryKey: ["supervisor-issues-all"] });
+    },
+  });
+
+  const assignmentMutation = useMutation({
+    mutationFn: (assignedTo: string | null) =>
+      updateIssue(Number(id), { assignedTo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issue", id] });
+      queryClient.invalidateQueries({ queryKey: ["supervisor-issues"] });
+      queryClient.invalidateQueries({ queryKey: ["supervisor-issues-all"] });
+      setEditingAssignment(false);
+      setAssignedToInput(null);
     },
   });
 
@@ -252,6 +266,54 @@ export default function IssueDetailScreen() {
 
           {isSupervisor && (
             <>
+              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Assigned To</Text>
+              {editingAssignment ? (
+                <View style={styles.assignmentInputRow}>
+                  <TextInput
+                    style={styles.assignmentInput}
+                    value={assignedToInput ?? ""}
+                    onChangeText={setAssignedToInput}
+                    placeholder="Team or person name..."
+                    placeholderTextColor={Colors.textTertiary}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
+                  />
+                  <TouchableOpacity
+                    style={styles.assignmentSaveBtn}
+                    onPress={() => assignmentMutation.mutate(assignedToInput?.trim() || null)}
+                    disabled={assignmentMutation.isPending}
+                  >
+                    {assignmentMutation.isPending ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Feather name="check" size={16} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.assignmentCancelBtn}
+                    onPress={() => { setEditingAssignment(false); setAssignedToInput(null); }}
+                  >
+                    <Feather name="x" size={16} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.assignmentDisplayBtn}
+                  onPress={() => {
+                    setAssignedToInput(issue.assignedTo ?? "");
+                    setEditingAssignment(true);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Feather name="user" size={16} color={issue.assignedTo ? Colors.primary : Colors.textTertiary} />
+                  <Text style={[styles.assignmentDisplayText, !issue.assignedTo && styles.assignmentPlaceholder]}>
+                    {issue.assignedTo ?? "Unassigned — tap to assign"}
+                  </Text>
+                  <Feather name="edit-2" size={14} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+
               <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Priority</Text>
               {(() => {
                 const prio = localPriority !== undefined ? localPriority : (issue.priority as IssuePriority);
@@ -695,5 +757,59 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "500",
     fontFamily: "Inter_500Medium",
+  },
+  assignmentDisplayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    gap: 10,
+  },
+  assignmentDisplayText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+  },
+  assignmentPlaceholder: {
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+  },
+  assignmentInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  assignmentInput: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: Colors.text,
+    fontFamily: "Inter_400Regular",
+    borderWidth: 1,
+    borderColor: Colors.primary + "60",
+  },
+  assignmentSaveBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  assignmentCancelBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: Colors.borderLight,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

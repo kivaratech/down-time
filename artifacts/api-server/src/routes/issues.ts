@@ -5,15 +5,29 @@ import {
   commentsTable,
   restaurantsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, gte, lte, isNull, ne } from "drizzle-orm";
+import { eq, and, asc, lte, SQL } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   extractToken,
   getRestaurantFromToken,
   getSupervisorFromToken,
 } from "../lib/auth";
 import { getCategoryForArea } from "../lib/equipment";
+import {
+  ListRestaurantIssuesParams,
+  ListRestaurantIssuesQueryParams,
+  ListIssuesQueryParams,
+  CreateIssueBody,
+  GetIssueParams,
+  UpdateIssueParams,
+  UpdateIssueBody,
+  AddCommentParams,
+  AddCommentBody,
+} from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+const PRIORITY_ORDER = sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`;
 
 function buildIssueQuery() {
   return db
@@ -41,91 +55,90 @@ function buildIssueQuery() {
 
 // GET /api/restaurants/:id/issues
 router.get("/restaurants/:id/issues", async (req, res) => {
-  const restaurantId = parseInt(req.params.id, 10);
-  if (isNaN(restaurantId)) {
+  const params = ListRestaurantIssuesParams.safeParse(req.params);
+  if (!params.success) {
     res.status(400).json({ error: "Invalid restaurant ID" });
     return;
   }
+  const restaurantId = params.data.id;
 
-  const statusFilter = req.query.status as string;
-  const conditions = [eq(issuesTable.restaurantId, restaurantId)];
+  const query = ListRestaurantIssuesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
 
-  if (!statusFilter || statusFilter === "all") {
-    // all statuses
-  } else {
-    conditions.push(eq(issuesTable.status, statusFilter as any));
+  const token = extractToken(req);
+  const restaurant = await getRestaurantFromToken(token);
+  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
+
+  if (!restaurant && !supervisor) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  if (restaurant && restaurant.id !== restaurantId) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  const conditions: SQL<unknown>[] = [eq(issuesTable.restaurantId, restaurantId)];
+
+  const { status } = query.data;
+  if (status && status !== "all") {
+    conditions.push(eq(issuesTable.status, status));
   }
 
   const issues = await buildIssueQuery()
     .where(and(...conditions))
-    .orderBy(
-      // priority: urgent first (null last), then oldest first
-      sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`,
-      asc(issuesTable.createdAt)
-    );
+    .orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt));
 
   res.json(issues);
 });
 
-// GET /api/issues (supervisor)
+// GET /api/issues (supervisor only)
 router.get("/issues", async (req, res) => {
   const token = extractToken(req);
   const supervisor = await getSupervisorFromToken(token);
   if (!supervisor) {
-    // Allow restaurant users to list their own issues via this endpoint too
-    const restaurant = await getRestaurantFromToken(token);
-    if (!restaurant) {
-      res.status(401).json({ error: "Authentication required" });
-      return;
-    }
-    // Redirect to restaurant-scoped query
-    const issues = await buildIssueQuery()
-      .where(eq(issuesTable.restaurantId, restaurant.id))
-      .orderBy(
-        sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`,
-        asc(issuesTable.createdAt)
-      );
-    res.json(issues);
+    res.status(401).json({ error: "Authentication required" });
     return;
   }
 
-  const conditions: any[] = [];
+  const query = ListIssuesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
 
-  const { restaurantId, status, category, priority, assignedTo, agingDays } = req.query;
+  const { restaurantId, status, category, priority, assignedTo, agingDays } = query.data;
+  const conditions: SQL<unknown>[] = [];
 
-  if (restaurantId) {
-    conditions.push(eq(issuesTable.restaurantId, parseInt(restaurantId as string, 10)));
+  if (restaurantId !== undefined) {
+    conditions.push(eq(issuesTable.restaurantId, restaurantId));
   }
   if (status && status !== "all") {
-    conditions.push(eq(issuesTable.status, status as any));
+    conditions.push(eq(issuesTable.status, status));
   }
   if (category) {
-    conditions.push(eq(issuesTable.category, category as any));
+    conditions.push(eq(issuesTable.category, category));
   }
   if (priority) {
-    conditions.push(eq(issuesTable.priority, priority as any));
+    conditions.push(eq(issuesTable.priority, priority));
   }
   if (assignedTo) {
-    conditions.push(eq(issuesTable.assignedTo, assignedTo as string));
+    conditions.push(eq(issuesTable.assignedTo, assignedTo));
   }
-  if (agingDays) {
+  if (agingDays !== undefined) {
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - parseInt(agingDays as string, 10));
+    cutoff.setDate(cutoff.getDate() - agingDays);
     conditions.push(lte(issuesTable.createdAt, cutoff));
   }
 
-  const query = buildIssueQuery();
+  const baseQuery = buildIssueQuery();
   const issues = conditions.length > 0
-    ? await query
-        .where(and(...conditions))
-        .orderBy(
-          sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`,
-          asc(issuesTable.createdAt)
-        )
-    : await query.orderBy(
-        sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`,
-        asc(issuesTable.createdAt)
-      );
+    ? await baseQuery.where(and(...conditions)).orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt))
+    : await baseQuery.orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt));
 
   res.json(issues);
 });
@@ -141,10 +154,16 @@ router.post("/issues", async (req, res) => {
     return;
   }
 
-  const { restaurantId, area, equipmentType, subItem, customLabel, description, assignedTo } = req.body;
+  const body = CreateIssueBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request body", details: body.error.issues });
+    return;
+  }
 
-  if (!restaurantId || !area || !equipmentType || !description) {
-    res.status(400).json({ error: "restaurantId, area, equipmentType, and description are required" });
+  const { restaurantId, area, equipmentType, subItem, customLabel, description, assignedTo } = body.data;
+
+  if (restaurant && restaurant.id !== restaurantId) {
+    res.status(403).json({ error: "Access denied: cannot create issues for another restaurant" });
     return;
   }
 
@@ -153,7 +172,7 @@ router.post("/issues", async (req, res) => {
   const [issue] = await db
     .insert(issuesTable)
     .values({
-      restaurantId: parseInt(restaurantId, 10),
+      restaurantId,
       area,
       category,
       equipmentType,
@@ -165,22 +184,36 @@ router.post("/issues", async (req, res) => {
     })
     .returning();
 
-  // Fetch with restaurant name
   const [fullIssue] = await buildIssueQuery().where(eq(issuesTable.id, issue.id));
   res.status(201).json(fullIssue);
 });
 
 // GET /api/issues/:id
 router.get("/issues/:id", async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const params = GetIssueParams.safeParse(req.params);
+  if (!params.success) {
     res.status(400).json({ error: "Invalid issue ID" });
+    return;
+  }
+  const id = params.data.id;
+
+  const token = extractToken(req);
+  const restaurant = await getRestaurantFromToken(token);
+  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
+
+  if (!restaurant && !supervisor) {
+    res.status(401).json({ error: "Authentication required" });
     return;
   }
 
   const [issue] = await buildIssueQuery().where(eq(issuesTable.id, id));
   if (!issue) {
     res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  if (restaurant && issue.restaurantId !== restaurant.id) {
+    res.status(403).json({ error: "Access denied" });
     return;
   }
 
@@ -195,11 +228,12 @@ router.get("/issues/:id", async (req, res) => {
 
 // PATCH /api/issues/:id
 router.patch("/issues/:id", async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const params = UpdateIssueParams.safeParse(req.params);
+  if (!params.success) {
     res.status(400).json({ error: "Invalid issue ID" });
     return;
   }
+  const id = params.data.id;
 
   const token = extractToken(req);
   const restaurant = await getRestaurantFromToken(token);
@@ -210,25 +244,41 @@ router.patch("/issues/:id", async (req, res) => {
     return;
   }
 
-  const { status, assignedTo, priority, description } = req.body;
+  const body = UpdateIssueBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request body", details: body.error.issues });
+    return;
+  }
 
-  // Only supervisors can set priority
-  const updates: Record<string, any> = {
+  const [existing] = await db.select().from(issuesTable).where(eq(issuesTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  if (restaurant && existing.restaurantId !== restaurant.id) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  const { status, assignedTo, priority, description } = body.data;
+
+  const updates: Partial<typeof issuesTable.$inferInsert> & { updatedAt: Date; resolvedAt?: Date | null } = {
     updatedAt: new Date(),
   };
 
   if (status !== undefined) {
     updates.status = status;
-    if (status === "resolved") {
-      updates.resolvedAt = new Date();
-    } else {
-      updates.resolvedAt = null;
-    }
+    updates.resolvedAt = status === "resolved" ? new Date() : null;
   }
-  if (assignedTo !== undefined) updates.assignedTo = assignedTo || null;
-  if (description !== undefined) updates.description = description;
+  if (assignedTo !== undefined) {
+    updates.assignedTo = assignedTo ?? null;
+  }
+  if (description !== undefined) {
+    updates.description = description;
+  }
   if (priority !== undefined && supervisor) {
-    updates.priority = priority || null;
+    updates.priority = priority ?? null;
   }
 
   const [updated] = await db
@@ -248,11 +298,12 @@ router.patch("/issues/:id", async (req, res) => {
 
 // POST /api/issues/:id/comments
 router.post("/issues/:id/comments", async (req, res) => {
-  const issueId = parseInt(req.params.id, 10);
-  if (isNaN(issueId)) {
+  const params = AddCommentParams.safeParse(req.params);
+  if (!params.success) {
     res.status(400).json({ error: "Invalid issue ID" });
     return;
   }
+  const issueId = params.data.id;
 
   const token = extractToken(req);
   const restaurant = await getRestaurantFromToken(token);
@@ -263,9 +314,9 @@ router.post("/issues/:id/comments", async (req, res) => {
     return;
   }
 
-  const { authorName, body } = req.body;
-  if (!authorName || !body) {
-    res.status(400).json({ error: "authorName and body are required" });
+  const body = AddCommentBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request body", details: body.error.issues });
     return;
   }
 
@@ -275,9 +326,14 @@ router.post("/issues/:id/comments", async (req, res) => {
     return;
   }
 
+  if (restaurant && issue.restaurantId !== restaurant.id) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
   const [comment] = await db
     .insert(commentsTable)
-    .values({ issueId, authorName, body })
+    .values({ issueId, authorName: body.data.authorName, body: body.data.body })
     .returning();
 
   res.status(201).json(comment);
