@@ -93,6 +93,12 @@ export default function IssueDetailScreen() {
         if (restaurant) {
           queryClient.invalidateQueries({ queryKey: getListRestaurantIssuesQueryKey(restaurant.id) });
         }
+        // Auto-navigate to dashboard when issue is marked as resolved
+        if (data.status === "resolved") {
+          setTimeout(() => {
+            router.push(isSupervisor ? "/(supervisor)" : "/(restaurant)");
+          }, 400);
+        }
       },
     },
   });
