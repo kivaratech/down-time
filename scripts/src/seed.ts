@@ -27,10 +27,10 @@ function hashPassword(password: string): string {
 }
 
 const RESTAURANTS = [
-  { name: "Zeeb", location: "Zeeb Rd", pin: "2936" },
-  { name: "Baker", location: "Baker Rd", pin: "24999" },
-  { name: "Leslie", location: "Leslie Ave", pin: "21244" },
-  { name: "Stockbridge", location: "Stockbridge Rd", pin: "20827" },
+  { name: "Zeeb", location: "Zeeb Rd", username: "zeeb", password: "zeeb2025" },
+  { name: "Baker", location: "Baker Rd", username: "baker", password: "baker2025" },
+  { name: "Leslie", location: "Leslie Ave", username: "leslie", password: "leslie2025" },
+  { name: "Stockbridge", location: "Stockbridge Rd", username: "stockbridge", password: "stockbridge2025" },
 ];
 
 const SUPERVISORS = [
@@ -106,7 +106,14 @@ async function seed() {
 
   const restaurants = await db
     .insert(restaurantsTable)
-    .values(RESTAURANTS)
+    .values(
+      RESTAURANTS.map((r) => ({
+        name: r.name,
+        location: r.location,
+        username: r.username,
+        passwordHash: hashPassword(r.password),
+      }))
+    )
     .returning();
   console.log(`✅ Created ${restaurants.length} restaurants`);
 
@@ -314,7 +321,8 @@ async function seed() {
   console.log("\nTest accounts:");
   console.log("Supervisor: admin / admin123");
   console.log("Supervisor: supervisor / pass123");
-  console.log("Restaurant PINs: 2936 (Zeeb), 24999 (Baker), 21244 (Leslie), 20827 (Stockbridge)");
+  console.log("Restaurant accounts:");
+  RESTAURANTS.forEach((r) => console.log(`  ${r.name}: ${r.username} / ${r.password}`));
   process.exit(0);
 }
 

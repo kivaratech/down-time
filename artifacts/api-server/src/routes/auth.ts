@@ -9,16 +9,16 @@ const router: IRouter = Router();
 router.post("/auth/restaurant/login", async (req, res) => {
   const body = RestaurantLoginBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: "PIN is required" });
+    res.status(400).json({ error: "Username and password are required" });
     return;
   }
   const [restaurant] = await db
     .select()
     .from(restaurantsTable)
-    .where(eq(restaurantsTable.pin, body.data.pin))
+    .where(eq(restaurantsTable.username, body.data.username))
     .limit(1);
-  if (!restaurant) {
-    res.status(401).json({ error: "Invalid PIN" });
+  if (!restaurant || !verifyPassword(body.data.password, restaurant.passwordHash)) {
+    res.status(401).json({ error: "Invalid username or password" });
     return;
   }
   const token = generateToken();

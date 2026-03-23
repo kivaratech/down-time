@@ -18,7 +18,8 @@ export interface SuccessResponse {
 }
 
 export interface RestaurantLoginRequest {
-  pin: string;
+  username: string;
+  password: string;
 }
 
 export interface Restaurant {

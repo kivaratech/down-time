@@ -15,10 +15,11 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * @summary Restaurant PIN login
+ * @summary Restaurant account login
  */
 export const RestaurantLoginBody = zod.object({
-  pin: zod.string(),
+  username: zod.string(),
+  password: zod.string(),
 });
 
 export const RestaurantLoginResponse = zod.object({
