@@ -157,7 +157,7 @@ export default function SettingsScreen() {
         <FlatList
           data={areaItems}
           keyExtractor={(i) => String(i.id)}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
           renderItem={({ item }) => (
             <View style={styles.itemRow}>
               <Feather name="tool" size={16} color={Colors.textSecondary} style={styles.itemIcon} />
