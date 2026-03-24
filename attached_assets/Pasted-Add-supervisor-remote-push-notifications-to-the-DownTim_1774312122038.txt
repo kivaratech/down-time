@@ -1,0 +1,76 @@
+Add supervisor remote push notifications to the DownTime app using Expo Notifications. Keep this implementation simple, clean, and production-minded. Do not add extra features beyond what is needed.
+
+Important technical direction:
+- This app uses Expo for notifications
+- Implement notifications using expo-notifications and Expo push tokens
+- Build this in a way that is correct for Expo development builds / production builds, not dependent on Expo Go
+- If any testing/setup notes are needed, explain them clearly at the end
+
+Goal:
+When a new issue is logged, supervisor users should receive a remote push notification on their device.
+
+Requirements:
+
+1. Notification trigger
+- Send a push notification only when a new issue is created
+- Do not notify yet for comments, status changes, assignments, or resolutions
+- Keep V1 narrow and reliable
+
+2. Notification audience
+- Notify supervisor users for the same organization as the restaurant where the issue was created
+- Do not notify restaurant tablet users
+- Structure this cleanly so organization-based targeting can scale later
+
+3. Notification content
+- Include useful summary information:
+  - restaurant name
+  - equipment or item name
+  - short description if available
+- Example:
+  - Title: New issue reported
+  - Body: Zeeb Rd — Fryer Vat 2 — Not heating
+- Keep messages short and readable on mobile lock screens
+
+4. Expo client implementation
+- Use expo-notifications for client-side notification registration and handling
+- On supervisor login or app open, register the device for push notifications if permissions are granted
+- Obtain the Expo push token and send it to the backend
+- Save or update the supervisor’s Expo push token in the database
+- Do not repeatedly prompt for permissions in an annoying way
+- If permission is denied, fail gracefully without breaking the app
+
+5. Backend implementation
+- When an issue is successfully created, trigger a push notification send from the backend
+- Use the stored Expo push tokens for supervisor users in the same organization
+- Do not block issue creation if notification sending fails
+- Log notification send failures safely for debugging
+- Structure the notification sending code cleanly so it can later support more event types
+
+6. Data model / storage
+- Add whatever fields or tables are needed to store supervisor Expo push tokens
+- Support token updates if a supervisor logs in on a new device
+- Handle missing or invalid tokens gracefully
+- Keep restaurant authentication/session storage separate from supervisor push token storage
+
+7. Reliability / cleanup
+- If Expo returns errors indicating invalid or unregistered tokens, handle that cleanly
+- Make the implementation modular enough that token cleanup can be improved later
+- Keep the first version straightforward, not enterprise-heavy
+
+8. UI constraints
+- Do not add a notification settings center yet
+- Do not add SMS or email
+- Do not clutter the supervisor UI
+- Add only the minimum permissions/registration logic needed
+
+9. Show me clearly after implementation
+Please explain:
+- what schema changes were made
+- where Expo push tokens are stored
+- where notifications are triggered in the backend
+- what packages were added
+- what environment variables or setup steps are required
+- how I should test this with Expo development builds
+- any limitations with Expo Go vs development builds
+
+Keep the current clean UI and app structure. Avoid overbuilding.
