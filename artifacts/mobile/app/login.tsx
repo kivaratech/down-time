@@ -262,11 +262,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   orgName: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.45)",
-    fontFamily: "Inter_400Regular",
-    marginTop: 6,
-    letterSpacing: 0.2,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.8)",
+    fontFamily: "Inter_700Bold",
+    marginTop: 8,
+    letterSpacing: 0.3,
   },
   chooseContainer: {
     flex: 1,
