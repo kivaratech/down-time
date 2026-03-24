@@ -7,6 +7,7 @@ export const supervisorsTable = pgTable("supervisors", {
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
+  expoPushToken: text("expo_push_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

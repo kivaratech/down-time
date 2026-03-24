@@ -4,8 +4,9 @@ import {
   issuesTable,
   commentsTable,
   restaurantsTable,
+  supervisorsTable,
 } from "@workspace/db";
-import { eq, and, asc, lte, SQL } from "drizzle-orm";
+import { eq, and, asc, lte, isNotNull, SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   extractToken,
@@ -13,6 +14,7 @@ import {
   getSupervisorFromToken,
 } from "../lib/auth";
 import { getCategoryForArea } from "../lib/equipment";
+import { notifySupervisorsOfNewIssue } from "../lib/notifications";
 import {
   ListRestaurantIssuesParams,
   ListRestaurantIssuesQueryParams,
@@ -186,6 +188,22 @@ router.post("/issues", async (req, res) => {
 
   const [fullIssue] = await buildIssueQuery().where(eq(issuesTable.id, issue.id));
   res.status(201).json(fullIssue);
+
+  // Send push notifications to supervisors — non-blocking, never delays the response
+  const supervisors = await db
+    .select({ expoPushToken: supervisorsTable.expoPushToken })
+    .from(supervisorsTable)
+    .where(isNotNull(supervisorsTable.expoPushToken));
+
+  notifySupervisorsOfNewIssue({
+    restaurantName: fullIssue.restaurantName,
+    equipmentType: fullIssue.equipmentType,
+    subItem: fullIssue.subItem,
+    description: fullIssue.description,
+    supervisorTokens: supervisors.map((s) => s.expoPushToken),
+  }).catch((err) => {
+    console.error("[issues] Notification send failed:", err);
+  });
 });
 
 // GET /api/issues/:id

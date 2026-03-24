@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { configurePushNotifications, registerSupervisorPushToken } from "../hooks/usePushNotifications";
 
 const TOKEN_KEY = "downtime_auth_token";
 const AUTH_TYPE_KEY = "downtime_auth_type";
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supervisor, setSupervisor] = useState<Supervisor | null>(null);
 
   useEffect(() => {
+    configurePushNotifications();
     loadSession();
   }, []);
 
@@ -83,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (savedType === "supervisor" && savedSupervisor) {
           setSupervisor(JSON.parse(savedSupervisor));
+          // Re-register push token on app launch in case it changed
+          registerSupervisorPushToken(savedToken).catch(() => {});
         }
       }
     } catch {
@@ -119,6 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthType("supervisor");
       setSupervisor(sup);
       setRestaurant(null);
+      // Register for push notifications — non-blocking, fails gracefully
+      registerSupervisorPushToken(newToken).catch(() => {});
     },
     []
   );

@@ -60,6 +60,28 @@ router.post("/auth/supervisor/logout", async (req, res) => {
   res.json({ success: true });
 });
 
+router.post("/auth/supervisor/push-token", async (req, res) => {
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor) {
+    res.status(401).json({ error: "Supervisor authentication required" });
+    return;
+  }
+
+  const { token: pushToken } = req.body;
+  if (!pushToken || typeof pushToken !== "string") {
+    res.status(400).json({ error: "Push token is required" });
+    return;
+  }
+
+  await db
+    .update(supervisorsTable)
+    .set({ expoPushToken: pushToken })
+    .where(eq(supervisorsTable.id, supervisor.id));
+
+  res.json({ success: true });
+});
+
 router.get("/auth/me", async (req, res) => {
   const token = extractToken(req);
   const restaurant = await getRestaurantFromToken(token);

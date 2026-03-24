@@ -39,8 +39,9 @@ artifacts-monorepo/
 
 ### Features
 
-- **Restaurant PIN login**: Shared iPad access with 4-digit PIN
+- **Restaurant login**: Shared iPad access with username/password
 - **Supervisor login**: Individual username/password
+- **Supervisor push notifications**: Expo push notifications sent when new issues are created
 - **Restaurant home**: Issues list with status filters (Open / In Progress / Waiting / Resolved / All)
 - **Report issue flow**: Multi-step: Area → Equipment → Sub-item → Description → Submit
 - **Issue detail**: Status update, priority (supervisor only), comments
@@ -108,6 +109,7 @@ Flat color object in `constants/colors.ts`:
 | POST | /api/auth/restaurant/login | PIN login → token + restaurant |
 | POST | /api/auth/supervisor/login | Cred login → token + supervisor |
 | POST | /api/auth/supervisor/logout | Clear supervisor session |
+| POST | /api/auth/supervisor/push-token | Register/update supervisor Expo push token |
 | GET | /api/auth/me | Current user info |
 | GET | /api/restaurants | List all (supervisor) |
 | GET | /api/restaurants/:id/issues | Restaurant issues with status filter |
