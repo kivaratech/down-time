@@ -7,8 +7,8 @@ import {
   type ListIssuesPriority,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -71,16 +71,11 @@ type ActiveDropdown = "area" | "category" | "priority" | "restaurant" | "aging" 
 
 export default function SupervisorIssuesScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ restaurantId?: string; status?: string }>();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    (params?.status as StatusFilter) ?? "open"
-  );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [areaFilter, setAreaFilter] = useState<AreaFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
-  const [restaurantFilter, setRestaurantFilter] = useState<number | null>(
-    params?.restaurantId ? parseInt(params.restaurantId, 10) : null
-  );
+  const [restaurantFilter, setRestaurantFilter] = useState<number | null>(null);
   const [agingFilter, setAgingFilter] = useState<number | null>(null);
   const [assignedToFilter, setAssignedToFilter] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
