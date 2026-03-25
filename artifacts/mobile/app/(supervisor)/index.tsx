@@ -151,7 +151,7 @@ export default function SupervisorDashboardScreen() {
           }}
           style={styles.logoutBtn}
         >
-          <Feather name="log-out" size={20} color={Colors.textSecondary} />
+          <Feather name="log-out" size={20} color={Colors.accent} />
         </TouchableOpacity>
       </View>
 
