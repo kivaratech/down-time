@@ -5,8 +5,9 @@ import {
   commentsTable,
   restaurantsTable,
   supervisorsTable,
+  supervisorRestaurantsTable,
 } from "@workspace/db";
-import { eq, and, asc, lte, isNotNull, SQL } from "drizzle-orm";
+import { eq, and, asc, lte, isNotNull, inArray, SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   extractToken,
@@ -117,9 +118,33 @@ router.get("/issues", async (req, res) => {
   const { restaurantId, status, category, priority, assignedTo, agingDays } = query.data;
   const conditions: SQL<unknown>[] = [];
 
-  if (restaurantId !== undefined) {
-    conditions.push(eq(issuesTable.restaurantId, restaurantId));
+  // Non-admin supervisors only see issues from their assigned restaurants
+  if (supervisor.role !== "admin") {
+    const assignments = await db
+      .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
+      .from(supervisorRestaurantsTable)
+      .where(eq(supervisorRestaurantsTable.supervisorId, supervisor.id));
+    const assignedIds = assignments.map((a) => a.restaurantId);
+    if (assignedIds.length === 0) {
+      res.json([]);
+      return;
+    }
+    if (restaurantId !== undefined) {
+      // Honour the specific filter only if that restaurant is assigned to them
+      if (!assignedIds.includes(restaurantId)) {
+        res.json([]);
+        return;
+      }
+      conditions.push(eq(issuesTable.restaurantId, restaurantId));
+    } else {
+      conditions.push(inArray(issuesTable.restaurantId, assignedIds));
+    }
+  } else {
+    if (restaurantId !== undefined) {
+      conditions.push(eq(issuesTable.restaurantId, restaurantId));
+    }
   }
+
   if (status && status !== "all") {
     conditions.push(eq(issuesTable.status, status));
   }

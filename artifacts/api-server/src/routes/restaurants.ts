@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, restaurantsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { db, restaurantsTable, supervisorRestaurantsTable } from "@workspace/db";
+import { eq, asc, inArray } from "drizzle-orm";
 import {
   extractToken,
   getRestaurantFromToken,
@@ -17,8 +17,38 @@ router.get("/restaurants", async (req, res) => {
     res.status(401).json({ error: "Supervisor access required" });
     return;
   }
+
+  const cols = {
+    id: restaurantsTable.id,
+    name: restaurantsTable.name,
+    location: restaurantsTable.location,
+    createdAt: restaurantsTable.createdAt,
+  };
+
+  // Admins see all restaurants; non-admins only see their assigned ones
+  if (supervisor.role !== "admin") {
+    const assignments = await db
+      .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
+      .from(supervisorRestaurantsTable)
+      .where(eq(supervisorRestaurantsTable.supervisorId, supervisor.id));
+
+    const ids = assignments.map((a) => a.restaurantId);
+    if (ids.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const restaurants = await db
+      .select(cols)
+      .from(restaurantsTable)
+      .where(inArray(restaurantsTable.id, ids))
+      .orderBy(asc(restaurantsTable.name));
+    res.json(restaurants);
+    return;
+  }
+
   const restaurants = await db
-    .select({ id: restaurantsTable.id, name: restaurantsTable.name, location: restaurantsTable.location, createdAt: restaurantsTable.createdAt })
+    .select(cols)
     .from(restaurantsTable)
     .orderBy(asc(restaurantsTable.name));
   res.json(restaurants);
@@ -44,6 +74,19 @@ router.get("/restaurants/:id", async (req, res) => {
   if (restaurant && restaurant.id !== id) {
     res.status(403).json({ error: "Access denied" });
     return;
+  }
+
+  // Non-admin supervisors can only access their assigned restaurants
+  if (supervisor && supervisor.role !== "admin") {
+    const assignments = await db
+      .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
+      .from(supervisorRestaurantsTable)
+      .where(eq(supervisorRestaurantsTable.supervisorId, supervisor.id));
+    const assignedIds = assignments.map((a) => a.restaurantId);
+    if (!assignedIds.includes(id)) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
   }
 
   const [row] = await db
