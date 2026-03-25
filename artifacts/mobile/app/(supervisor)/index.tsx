@@ -48,20 +48,50 @@ function RestaurantStatCard({ restaurant, issues }: { restaurant: Restaurant; is
       </View>
 
       <View style={styles.statRow}>
-        <View style={styles.statItem}>
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            router.push({
+              pathname: "/(supervisor)/issues",
+              params: { restaurantId: String(restaurant.id), status: "open" },
+            });
+          }}
+          activeOpacity={0.6}
+        >
           <Text style={[styles.statValue, { color: Colors.openStatus }]}>{openCount}</Text>
           <Text style={styles.statLabel}>Open</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.statDivider} />
-        <View style={styles.statItem}>
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            router.push({
+              pathname: "/(supervisor)/issues",
+              params: { restaurantId: String(restaurant.id), status: "in_progress" },
+            });
+          }}
+          activeOpacity={0.6}
+        >
           <Text style={[styles.statValue, { color: Colors.inProgressStatus }]}>{inProgressCount}</Text>
           <Text style={styles.statLabel}>In Progress</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.statDivider} />
-        <View style={styles.statItem}>
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            router.push({
+              pathname: "/(supervisor)/issues",
+              params: { restaurantId: String(restaurant.id) },
+            });
+          }}
+          activeOpacity={0.6}
+        >
           <Text style={[styles.statValue, { color: Colors.textSecondary }]}>{issues.length}</Text>
           <Text style={styles.statLabel}>Total</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {issues.filter((i) => i.priority === "urgent" || i.status === "open").slice(0, 2).map((issue) => (
