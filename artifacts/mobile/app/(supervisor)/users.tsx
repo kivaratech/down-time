@@ -159,15 +159,12 @@ export default function UsersScreen() {
     }
   }
 
-  async function doToggleActive() {
+  async function doDeleteUser() {
     if (!confirmUser) return;
     const user = confirmUser;
     setToggling(true);
-    const endpoint = user.isActive
-      ? `/api/admin/users/${user.id}/deactivate`
-      : `/api/admin/users/${user.id}/activate`;
     try {
-      await customFetch(endpoint, { method: "POST" });
+      await customFetch(`/api/admin/users/${user.id}/deactivate`, { method: "POST" });
       setConfirmUser(null);
       fetchUsers();
     } catch (err: any) {
@@ -393,7 +390,7 @@ export default function UsersScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Deactivate / Reactivate Confirmation Modal */}
+      {/* Delete User Confirmation Modal */}
       <Modal
         visible={!!confirmUser}
         transparent
@@ -402,13 +399,9 @@ export default function UsersScreen() {
       >
         <View style={styles.overlay}>
           <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>
-              {confirmUser?.isActive ? "Deactivate Account" : "Reactivate Account"}
-            </Text>
+            <Text style={styles.confirmTitle}>Delete Account</Text>
             <Text style={styles.confirmBody}>
-              {confirmUser?.isActive
-                ? `${confirmUser?.name} will be signed out and unable to log in until reactivated.`
-                : `${confirmUser?.name} will be able to log in again.`}
+              {confirmUser?.name} will be permanently deleted. Their sessions will be signed out. This cannot be undone.
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity
@@ -419,19 +412,14 @@ export default function UsersScreen() {
                 <Text style={styles.confirmCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.confirmConfirm,
-                  confirmUser?.isActive ? styles.confirmDanger : styles.confirmSuccess,
-                ]}
-                onPress={doToggleActive}
+                style={[styles.confirmConfirm, styles.confirmDanger]}
+                onPress={doDeleteUser}
                 disabled={toggling}
               >
                 {toggling ? (
                   <ActivityIndicator color={Colors.surface} size="small" />
                 ) : (
-                  <Text style={styles.confirmConfirmText}>
-                    {confirmUser?.isActive ? "Deactivate" : "Reactivate"}
-                  </Text>
+                  <Text style={styles.confirmConfirmText}>Delete</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -453,13 +441,11 @@ type UserCardProps = {
 function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPassword }: UserCardProps) {
   const isSelf = user.id === currentSupervisorId;
   return (
-    <View style={[styles.card, !user.isActive && styles.cardInactive]}>
+    <View style={styles.card}>
       <View style={styles.cardTop}>
         <View style={styles.cardInfo}>
           <View style={styles.cardNameRow}>
-            <Text style={[styles.cardName, !user.isActive && styles.textMuted]}>
-              {user.name}
-            </Text>
+            <Text style={styles.cardName}>{user.name}</Text>
             {isSelf && (
               <View style={styles.selfBadge}>
                 <Text style={styles.selfBadgeText}>You</Text>
@@ -470,20 +456,9 @@ function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPa
                 {user.role}
               </Text>
             </View>
-            {!user.isActive && (
-              <View style={styles.inactiveBadge}>
-                <Text style={styles.inactiveBadgeText}>Inactive</Text>
-              </View>
-            )}
           </View>
-          <Text style={[styles.cardUsername, !user.isActive && styles.textMuted]}>
-            @{user.username}
-          </Text>
-          {!!user.email && (
-            <Text style={[styles.cardEmail, !user.isActive && styles.textMuted]}>
-              {user.email}
-            </Text>
-          )}
+          <Text style={styles.cardUsername}>@{user.username}</Text>
+          {!!user.email && <Text style={styles.cardEmail}>{user.email}</Text>}
         </View>
       </View>
 
@@ -500,19 +475,11 @@ function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPa
 
         {!isSelf && (
           <TouchableOpacity
-            style={[styles.actionBtn, user.isActive ? styles.actionBtnDanger : styles.actionBtnSuccess]}
+            style={[styles.actionBtn, styles.actionBtnDanger]}
             onPress={onToggleActive}
           >
-            <Feather
-              name={user.isActive ? "user-x" : "user-check"}
-              size={15}
-              color={user.isActive ? Colors.accent : Colors.success}
-            />
-            <Text
-              style={[styles.actionBtnText, { color: user.isActive ? Colors.accent : Colors.success }]}
-            >
-              {user.isActive ? "Deactivate" : "Reactivate"}
-            </Text>
+            <Feather name="trash-2" size={15} color={Colors.accent} />
+            <Text style={[styles.actionBtnText, { color: Colors.accent }]}>Delete</Text>
           </TouchableOpacity>
         )}
       </View>

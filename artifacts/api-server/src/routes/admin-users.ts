@@ -157,7 +157,7 @@ router.patch("/admin/users/:id", async (req, res) => {
   res.json(updated);
 });
 
-// POST /api/admin/users/:id/deactivate
+// POST /api/admin/users/:id/deactivate — delete the user
 router.post("/admin/users/:id/deactivate", async (req, res) => {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -169,18 +169,19 @@ router.post("/admin/users/:id/deactivate", async (req, res) => {
   }
 
   if (id === admin.id) {
-    res.status(400).json({ error: "You cannot deactivate your own account" });
+    res.status(400).json({ error: "You cannot delete your own account" });
     return;
   }
 
-  await db
-    .update(supervisorsTable)
-    .set({ isActive: false })
-    .where(eq(supervisorsTable.id, id));
-
+  // Delete all sessions for this user
   await db
     .delete(supervisorSessionsTable)
     .where(eq(supervisorSessionsTable.supervisorId, id));
+
+  // Delete the user
+  await db
+    .delete(supervisorsTable)
+    .where(eq(supervisorsTable.id, id));
 
   res.json({ success: true });
 });
