@@ -323,6 +323,21 @@ export default function SupervisorIssuesScreen() {
         )}
       </View>
 
+      {/* Report Issue Button */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity
+          style={styles.fabButton}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            router.push("/(supervisor)/report");
+          }}
+          activeOpacity={0.8}
+        >
+          <Feather name="plus" size={24} color="#FFFFFF" />
+          <Text style={styles.fabText}>Report Issue</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Issue List */}
       <FlatList
         data={filteredIssues}
@@ -358,18 +373,6 @@ export default function SupervisorIssuesScreen() {
           ) : null
         }
       />
-
-      {/* Report Issue FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 90 }]}
-        onPress={async () => {
-          await Haptics.selectionAsync();
-          router.push("/(supervisor)/report");
-        }}
-        activeOpacity={0.85}
-      >
-        <Feather name="plus" size={26} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -379,20 +382,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  fab: {
-    position: "absolute",
-    right: 20,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: Colors.accent,
-    justifyContent: "center",
+  fabContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  fabButton: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.accent,
+    borderRadius: 16,
+    paddingVertical: 16,
+    gap: 10,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.3,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 4,
+  },
+  fabText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
   },
   header: {
     backgroundColor: Colors.surface,
