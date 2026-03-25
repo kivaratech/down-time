@@ -29,6 +29,13 @@ type UserRow = {
   role: string;
   isActive: boolean;
   createdAt: string;
+  restaurantIds: number[];
+};
+
+type Restaurant = {
+  id: number;
+  name: string;
+  location: string;
 };
 
 type FormState = {
@@ -53,6 +60,7 @@ export default function UsersScreen() {
   const isAdmin = supervisor?.role === "admin";
 
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [formVisible, setFormVisible] = useState(false);
@@ -69,13 +77,21 @@ export default function UsersScreen() {
   const [confirmUser, setConfirmUser] = useState<UserRow | null>(null);
   const [toggling, setToggling] = useState(false);
 
+  const [storeModalUser, setStoreModalUser] = useState<UserRow | null>(null);
+  const [storeSelection, setStoreSelection] = useState<Set<number>>(new Set());
+  const [storeSaving, setStoreSaving] = useState(false);
+
   const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
-  const fetchUsers = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await customFetch<UserRow[]>("/api/admin/users");
-      setUsers(data);
+      const [userData, restaurantData] = await Promise.all([
+        customFetch<UserRow[]>("/api/admin/users"),
+        customFetch<Restaurant[]>("/api/restaurants"),
+      ]);
+      setUsers(userData);
+      setRestaurants(restaurantData);
     } catch {
       // silently fail — user will see empty list
     } finally {
@@ -85,8 +101,8 @@ export default function UsersScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (isAdmin) fetchUsers();
-    }, [isAdmin, fetchUsers])
+      if (isAdmin) fetchData();
+    }, [isAdmin, fetchData])
   );
 
   function openCreate() {
@@ -107,6 +123,46 @@ export default function UsersScreen() {
     });
     setFormError("");
     setFormVisible(true);
+  }
+
+  function openManageStores(user: UserRow) {
+    setStoreModalUser(user);
+    setStoreSelection(new Set(user.restaurantIds));
+  }
+
+  function toggleStoreSelection(id: number) {
+    setStoreSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function saveStoreAssignments() {
+    if (!storeModalUser) return;
+    setStoreSaving(true);
+    try {
+      await customFetch(`/api/admin/users/${storeModalUser.id}/restaurants`, {
+        method: "PUT",
+        body: JSON.stringify({ restaurantIds: Array.from(storeSelection) }),
+      });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === storeModalUser.id
+            ? { ...u, restaurantIds: Array.from(storeSelection) }
+            : u
+        )
+      );
+      setStoreModalUser(null);
+    } catch (err: any) {
+      Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
+    } finally {
+      setStoreSaving(false);
+    }
   }
 
   async function saveUser() {
@@ -133,7 +189,7 @@ export default function UsersScreen() {
           body: JSON.stringify(body),
         });
         setFormVisible(false);
-        fetchUsers();
+        fetchData();
         Alert.alert("Saved", `${form.name.trim()}'s account has been updated.`);
       } else {
         const body: Record<string, any> = {
@@ -148,7 +204,7 @@ export default function UsersScreen() {
           body: JSON.stringify(body),
         });
         setFormVisible(false);
-        fetchUsers();
+        fetchData();
         Alert.alert("Account Created", `${form.name.trim()} can now log in with username "${form.username.trim()}".`);
       }
     } catch (err: any) {
@@ -166,7 +222,7 @@ export default function UsersScreen() {
     try {
       await customFetch(`/api/admin/users/${user.id}/deactivate`, { method: "POST" });
       setConfirmUser(null);
-      fetchUsers();
+      fetchData();
     } catch (err: any) {
       setConfirmUser(null);
       Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
@@ -237,10 +293,12 @@ export default function UsersScreen() {
           renderItem={({ item }) => (
             <UserCard
               user={item}
+              restaurants={restaurants}
               currentSupervisorId={supervisor?.id ?? -1}
               onEdit={() => openEdit(item)}
               onToggleActive={() => setConfirmUser(item)}
               onResetPassword={() => openResetPassword(item)}
+              onManageStores={() => openManageStores(item)}
             />
           )}
           ListEmptyComponent={
@@ -319,7 +377,7 @@ export default function UsersScreen() {
             />
 
             {!editingUser && (
-              <>
+              <View>
                 <Text style={styles.fieldLabel}>Password *</Text>
                 <TextInput
                   style={styles.input}
@@ -329,7 +387,7 @@ export default function UsersScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   secureTextEntry
                 />
-              </>
+              </View>
             )}
 
             <Text style={styles.fieldLabel}>Role</Text>
@@ -429,20 +487,81 @@ export default function UsersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Manage Stores Modal */}
+      <Modal
+        visible={!!storeModalUser}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setStoreModalUser(null)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setStoreModalUser(null)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Assign Stores</Text>
+            <TouchableOpacity onPress={saveStoreAssignments} disabled={storeSaving}>
+              {storeSaving ? (
+                <ActivityIndicator color={Colors.primary} />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            <Text style={styles.storeSubtitle}>
+              Select which stores {storeModalUser?.name} can manage.
+            </Text>
+            {restaurants.map((r) => {
+              const selected = storeSelection.has(r.id);
+              return (
+                <TouchableOpacity
+                  key={r.id}
+                  style={[styles.storeRow, selected && styles.storeRowSelected]}
+                  onPress={() => toggleStoreSelection(r.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.storeInfo}>
+                    <Text style={styles.storeName}>{r.name}</Text>
+                    <Text style={styles.storeLocation}>{r.location}</Text>
+                  </View>
+                  <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                    {selected && <Feather name="check" size={14} color={Colors.surface} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 type UserCardProps = {
   user: UserRow;
+  restaurants: Restaurant[];
   currentSupervisorId: number;
   onEdit: () => void;
   onToggleActive: () => void;
   onResetPassword: () => void;
+  onManageStores: () => void;
 };
 
-function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPassword }: UserCardProps) {
+function UserCard({
+  user,
+  restaurants,
+  currentSupervisorId,
+  onEdit,
+  onToggleActive,
+  onResetPassword,
+  onManageStores,
+}: UserCardProps) {
   const isSelf = user.id === currentSupervisorId;
+  const assignedRestaurants = restaurants.filter((r) => (user.restaurantIds ?? []).includes(r.id));
+
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -462,6 +581,17 @@ function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPa
           </View>
           <Text style={styles.cardUsername}>@{user.username}</Text>
           {!!user.email && <Text style={styles.cardEmail}>{user.email}</Text>}
+
+          {assignedRestaurants.length > 0 && (
+            <View style={styles.storeChipsRow}>
+              {assignedRestaurants.map((r) => (
+                <View key={r.id} style={styles.storeChip}>
+                  <Feather name="map-pin" size={10} color={Colors.primary} />
+                  <Text style={styles.storeChipText}>{r.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </View>
 
@@ -469,6 +599,11 @@ function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPa
         <TouchableOpacity style={styles.actionBtn} onPress={onEdit}>
           <Feather name="edit-2" size={15} color={Colors.primary} />
           <Text style={styles.actionBtnText}>Edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={onManageStores}>
+          <Feather name="map-pin" size={15} color={Colors.primary} />
+          <Text style={styles.actionBtnText}>Stores</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onResetPassword}>
@@ -634,6 +769,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: Colors.accent,
+  },
+  storeChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  storeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primary + "12",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  storeChipText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: Colors.primary,
   },
   cardActions: {
     flexDirection: "row",
@@ -827,5 +982,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: Colors.surface,
+  },
+  storeSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  storeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    marginBottom: 10,
+  },
+  storeRowSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "08",
+  },
+  storeInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  storeName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  storeLocation: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.background,
+    marginLeft: 12,
+  },
+  checkboxSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
 });

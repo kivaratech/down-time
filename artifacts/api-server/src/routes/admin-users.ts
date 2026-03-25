@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, supervisorsTable, supervisorSessionsTable } from "@workspace/db";
-import { eq, ne } from "drizzle-orm";
-import { extractToken, getSupervisorFromToken, hashPassword, verifyPassword } from "../lib/auth";
+import { db, supervisorsTable, supervisorSessionsTable, supervisorRestaurantsTable, restaurantsTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
+import { extractToken, getSupervisorFromToken, hashPassword } from "../lib/auth";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -16,25 +16,40 @@ async function requireAdmin(req: any, res: any) {
   return supervisor;
 }
 
-// GET /api/admin/users — list all supervisors
+// GET /api/admin/users — list all supervisors with their assigned restaurant IDs
 router.get("/admin/users", async (req, res) => {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
 
-  const users = await db
-    .select({
-      id: supervisorsTable.id,
-      username: supervisorsTable.username,
-      name: supervisorsTable.name,
-      email: supervisorsTable.email,
-      role: supervisorsTable.role,
-      isActive: supervisorsTable.isActive,
-      createdAt: supervisorsTable.createdAt,
-    })
-    .from(supervisorsTable)
-    .orderBy(supervisorsTable.createdAt);
+  const [users, assignments] = await Promise.all([
+    db
+      .select({
+        id: supervisorsTable.id,
+        username: supervisorsTable.username,
+        name: supervisorsTable.name,
+        email: supervisorsTable.email,
+        role: supervisorsTable.role,
+        isActive: supervisorsTable.isActive,
+        createdAt: supervisorsTable.createdAt,
+      })
+      .from(supervisorsTable)
+      .orderBy(supervisorsTable.createdAt),
+    db
+      .select({
+        supervisorId: supervisorRestaurantsTable.supervisorId,
+        restaurantId: supervisorRestaurantsTable.restaurantId,
+      })
+      .from(supervisorRestaurantsTable),
+  ]);
 
-  res.json(users);
+  const assignmentMap: Record<number, number[]> = {};
+  for (const a of assignments) {
+    if (!assignmentMap[a.supervisorId]) assignmentMap[a.supervisorId] = [];
+    assignmentMap[a.supervisorId].push(a.restaurantId);
+  }
+
+  const result = users.map((u) => ({ ...u, restaurantIds: assignmentMap[u.id] ?? [] }));
+  res.json(result);
 });
 
 const CreateUserBody = z.object({
@@ -83,7 +98,7 @@ router.post("/admin/users", async (req, res) => {
       createdAt: supervisorsTable.createdAt,
     });
 
-  res.status(201).json(newUser);
+  res.status(201).json({ ...newUser, restaurantIds: [] });
 });
 
 const UpdateUserBody = z.object({
@@ -173,34 +188,8 @@ router.post("/admin/users/:id/deactivate", async (req, res) => {
     return;
   }
 
-  // Delete all sessions for this user
-  await db
-    .delete(supervisorSessionsTable)
-    .where(eq(supervisorSessionsTable.supervisorId, id));
-
-  // Delete the user
-  await db
-    .delete(supervisorsTable)
-    .where(eq(supervisorsTable.id, id));
-
-  res.json({ success: true });
-});
-
-// POST /api/admin/users/:id/activate
-router.post("/admin/users/:id/activate", async (req, res) => {
-  const admin = await requireAdmin(req, res);
-  if (!admin) return;
-
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid user ID" });
-    return;
-  }
-
-  await db
-    .update(supervisorsTable)
-    .set({ isActive: true })
-    .where(eq(supervisorsTable.id, id));
+  await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
+  await db.delete(supervisorsTable).where(eq(supervisorsTable.id, id));
 
   res.json({ success: true });
 });
@@ -239,11 +228,75 @@ router.post("/admin/users/:id/reset-password", async (req, res) => {
     return;
   }
 
-  await db
-    .delete(supervisorSessionsTable)
-    .where(eq(supervisorSessionsTable.supervisorId, id));
+  await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
 
   res.json({ success: true });
+});
+
+// GET /api/admin/users/:id/restaurants — get assigned restaurant IDs
+router.get("/admin/users/:id/restaurants", async (req, res) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const rows = await db
+    .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
+    .from(supervisorRestaurantsTable)
+    .where(eq(supervisorRestaurantsTable.supervisorId, id));
+
+  res.json({ restaurantIds: rows.map((r) => r.restaurantId) });
+});
+
+const UpdateRestaurantsBody = z.object({
+  restaurantIds: z.array(z.number().int().positive()),
+});
+
+// PUT /api/admin/users/:id/restaurants — replace all restaurant assignments
+router.put("/admin/users/:id/restaurants", async (req, res) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const body = UpdateRestaurantsBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request", details: body.error.flatten() });
+    return;
+  }
+
+  const { restaurantIds } = body.data;
+
+  // Verify all restaurant IDs exist
+  if (restaurantIds.length > 0) {
+    const found = await db
+      .select({ id: restaurantsTable.id })
+      .from(restaurantsTable)
+      .where(inArray(restaurantsTable.id, restaurantIds));
+    if (found.length !== restaurantIds.length) {
+      res.status(400).json({ error: "One or more restaurant IDs are invalid" });
+      return;
+    }
+  }
+
+  // Replace all assignments atomically
+  await db.delete(supervisorRestaurantsTable).where(eq(supervisorRestaurantsTable.supervisorId, id));
+
+  if (restaurantIds.length > 0) {
+    await db.insert(supervisorRestaurantsTable).values(
+      restaurantIds.map((restaurantId) => ({ supervisorId: id, restaurantId }))
+    );
+  }
+
+  res.json({ restaurantIds });
 });
 
 export default router;
