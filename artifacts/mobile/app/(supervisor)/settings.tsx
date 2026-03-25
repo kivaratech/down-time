@@ -32,6 +32,7 @@ type EquipmentItemRow = {
 
 type RestaurantRow = { id: number; name: string; location: string };
 type GeneratedCode = { code: string; expiresAt: string; restaurantName: string };
+type DeviceSession = { id: number; restaurantId: number; restaurantName: string; createdAt: string };
 
 type Area = "Front Counter" | "Grill" | "Back of House" | "Technology";
 const AREAS: Area[] = ["Front Counter", "Grill", "Back of House", "Technology"];
@@ -58,18 +59,28 @@ export default function SettingsScreen() {
   const [pairingLoading, setPairingLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<GeneratedCode | null>(null);
   const [codeModalVisible, setCodeModalVisible] = useState(false);
+  const [deviceSessions, setDeviceSessions] = useState<DeviceSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const loadItems = useCallback(async () => {
     setLoading(true);
     try {
-      const [equipData, restData] = await Promise.all([
-        customFetch<EquipmentItemRow[]>("/api/equipment/items"),
-        isAdmin ? customFetch<RestaurantRow[]>("/api/restaurants") : Promise.resolve([]),
-      ]);
-      setItems(equipData);
-      if (isAdmin) setRestaurants(restData);
+      const fetchPromises: Promise<any>[] = [customFetch<EquipmentItemRow[]>("/api/equipment/items")];
+      
+      if (isAdmin) {
+        fetchPromises.push(customFetch<RestaurantRow[]>("/api/restaurants"));
+        fetchPromises.push(customFetch<DeviceSession[]>("/api/auth/admin/device-sessions"));
+      }
+      
+      const results = await Promise.all(fetchPromises);
+      setItems(results[0]);
+      
+      if (isAdmin) {
+        setRestaurants(results[1]);
+        setDeviceSessions(results[2]);
+      }
     } catch {
       Alert.alert("Error", "Failed to load settings.");
     } finally {
@@ -166,6 +177,28 @@ export default function SettingsScreen() {
     return Math.max(0, Math.round(diff / 60000));
   };
 
+  const handleRevokeSession = (session: DeviceSession) => {
+    Alert.alert(
+      "Disconnect Device",
+      `Remove the tablet paired to ${session.restaurantName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await customFetch(`/api/auth/admin/device-sessions/${session.id}`, { method: "DELETE" });
+              setDeviceSessions((prev) => prev.filter((s) => s.id !== session.id));
+            } catch {
+              Alert.alert("Error", "Failed to disconnect device.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const doLogout = async () => {
     setLoggingOut(true);
     try {
@@ -231,6 +264,44 @@ export default function SettingsScreen() {
               </>
             )}
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Admin-only: Restaurant Pairings */}
+      {isAdmin && (
+        <View style={styles.pairingsListSection}>
+          <View style={styles.pairingSectionHeader}>
+            <Feather name="tablet" size={16} color={Colors.primary} />
+            <Text style={styles.pairingSectionTitle}>Restaurant Pairings</Text>
+          </View>
+          <Text style={styles.pairingSectionSubtitle}>
+            {deviceSessions.length === 0 ? "No tablets paired" : `${deviceSessions.length} tablet${deviceSessions.length !== 1 ? "s" : ""} connected`}
+          </Text>
+          {deviceSessions.length > 0 && (
+            <View style={styles.pairingsList}>
+              {deviceSessions.map((session) => (
+                <View key={session.id} style={styles.pairingItem}>
+                  <View style={styles.pairingItemContent}>
+                    <View style={styles.pairingIconBg}>
+                      <Feather name="tablet" size={18} color={Colors.primary} />
+                    </View>
+                    <View style={styles.pairingItemText}>
+                      <Text style={styles.pairingItemName}>{session.restaurantName}</Text>
+                      <Text style={styles.pairingItemDate}>
+                        Paired {new Date(session.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.pairingDeleteBtn}
+                    onPress={() => handleRevokeSession(session)}
+                  >
+                    <Feather name="x-circle" size={20} color={Colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -567,6 +638,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: "#FFFFFF",
+  },
+  // Restaurant pairings list section
+  pairingsListSection: {
+    backgroundColor: Colors.surface,
+    marginHorizontal: 12,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pairingsList: {
+    gap: 8,
+  },
+  pairingItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pairingItemContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  pairingIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: Colors.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pairingItemText: {
+    flex: 1,
+  },
+  pairingItemName: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  pairingItemDate: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+  },
+  pairingDeleteBtn: {
+    padding: 8,
   },
   sectionLabel: {
     fontSize: 12,
