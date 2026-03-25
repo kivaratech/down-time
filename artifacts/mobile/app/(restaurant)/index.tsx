@@ -33,7 +33,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number]["key"];
 export default function RestaurantHomeScreen() {
   const insets = useSafeAreaInsets();
   const { restaurant, logout } = useAuth();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const {
     data: issues,
