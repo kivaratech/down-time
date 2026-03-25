@@ -112,6 +112,10 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
             ),
         }}
       />
+      <Tabs.Screen
+        name="report"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }

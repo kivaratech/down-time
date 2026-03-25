@@ -6,6 +6,8 @@ import {
   type ListIssuesCategory,
   type ListIssuesPriority,
 } from "@workspace/api-client-react";
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -356,6 +358,18 @@ export default function SupervisorIssuesScreen() {
           ) : null
         }
       />
+
+      {/* Report Issue FAB */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: insets.bottom + 90 }]}
+        onPress={async () => {
+          await Haptics.selectionAsync();
+          router.push("/(supervisor)/report");
+        }}
+        activeOpacity={0.85}
+      >
+        <Feather name="plus" size={26} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -364,6 +378,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: Colors.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
   header: {
     backgroundColor: Colors.surface,
