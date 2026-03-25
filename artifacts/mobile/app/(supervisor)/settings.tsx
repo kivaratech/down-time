@@ -32,7 +32,7 @@ const OPTIONS: SettingsOption[] = [
     icon: "key",
     title: "Device Pairing",
     subtitle: "Pair tablets & manage connections",
-    route: "/(supervisor)/settings/device-pairing",
+    route: "settings/device-pairing",
     adminOnly: true,
   },
   {
@@ -40,14 +40,14 @@ const OPTIONS: SettingsOption[] = [
     icon: "tool",
     title: "Equipment Catalog",
     subtitle: "Manage equipment items",
-    route: "/(supervisor)/settings/equipment",
+    route: "settings/equipment",
   },
   {
     id: "users",
     icon: "users",
     title: "Users",
     subtitle: "Manage team members",
-    route: "/(supervisor)/users",
+    route: "../users",
     adminOnly: true,
   },
 ];
