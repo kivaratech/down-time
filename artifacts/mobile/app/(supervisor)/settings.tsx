@@ -47,7 +47,7 @@ const OPTIONS: SettingsOption[] = [
     icon: "users",
     title: "Users",
     subtitle: "Manage team members",
-    route: "../users",
+    route: "users",
     adminOnly: true,
   },
 ];
