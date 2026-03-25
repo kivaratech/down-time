@@ -1,5 +1,11 @@
-import { db, restaurantSessionsTable, supervisorSessionsTable, restaurantsTable, supervisorsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  db,
+  restaurantsTable,
+  supervisorsTable,
+  supervisorSessionsTable,
+  deviceSessionsTable,
+} from "@workspace/db";
+import { and, eq, isNull } from "drizzle-orm";
 import { Request } from "express";
 import crypto from "crypto";
 
@@ -29,8 +35,8 @@ export async function getRestaurantFromToken(token: string) {
   if (!token) return null;
   const [session] = await db
     .select()
-    .from(restaurantSessionsTable)
-    .where(eq(restaurantSessionsTable.token, token))
+    .from(deviceSessionsTable)
+    .where(and(eq(deviceSessionsTable.token, token), isNull(deviceSessionsTable.revokedAt)))
     .limit(1);
   if (!session) return null;
   const [restaurant] = await db
@@ -39,6 +45,16 @@ export async function getRestaurantFromToken(token: string) {
     .where(eq(restaurantsTable.id, session.restaurantId))
     .limit(1);
   return restaurant ?? null;
+}
+
+export async function getDeviceSessionFromToken(token: string) {
+  if (!token) return null;
+  const [session] = await db
+    .select()
+    .from(deviceSessionsTable)
+    .where(and(eq(deviceSessionsTable.token, token), isNull(deviceSessionsTable.revokedAt)))
+    .limit(1);
+  return session ?? null;
 }
 
 export async function getSupervisorFromToken(token: string) {
@@ -55,6 +71,12 @@ export async function getSupervisorFromToken(token: string) {
     .where(eq(supervisorsTable.id, session.supervisorId))
     .limit(1);
   return supervisor ?? null;
+}
+
+export async function getAdminFromToken(token: string) {
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor || supervisor.role !== "admin") return null;
+  return supervisor;
 }
 
 export function extractToken(req: Request): string {

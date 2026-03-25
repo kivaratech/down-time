@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter, setBaseUrl, supervisorLogout, getMe } from "@workspace/api-client-react";
+import { setAuthTokenGetter, supervisorLogout, getMe } from "@workspace/api-client-react";
 import React, {
   createContext,
   useCallback,
@@ -27,6 +27,7 @@ export type Supervisor = {
   id: number;
   username: string;
   name: string;
+  role: "admin" | "supervisor";
 };
 
 type AuthContextType = {
@@ -84,8 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRestaurant(JSON.parse(savedRestaurant));
         }
         if (savedType === "supervisor" && savedSupervisor) {
-          setSupervisor(JSON.parse(savedSupervisor));
-          // Re-register push token on app launch in case it changed
+          const sup = JSON.parse(savedSupervisor) as Supervisor;
+          setSupervisor(sup);
           registerSupervisorPushToken(savedToken).catch(() => {});
         }
       }
@@ -123,7 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthType("supervisor");
       setSupervisor(sup);
       setRestaurant(null);
-      // Register for push notifications — non-blocking, fails gracefully
       registerSupervisorPushToken(newToken).catch(() => {});
     },
     []

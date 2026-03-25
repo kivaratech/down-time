@@ -1,9 +1,10 @@
 import { db } from "@workspace/db";
 import {
   commentsTable,
+  deviceSessionsTable,
   equipmentItemsTable,
   issuesTable,
-  restaurantSessionsTable,
+  pairingCodesTable,
   restaurantsTable,
   supervisorSessionsTable,
   supervisorsTable,
@@ -27,15 +28,15 @@ function hashPassword(password: string): string {
 }
 
 const RESTAURANTS = [
-  { name: "Zeeb", location: "Zeeb Rd", username: "zeeb", password: "zeeb2025" },
-  { name: "Baker", location: "Baker Rd", username: "baker", password: "baker2025" },
-  { name: "Leslie", location: "Leslie Ave", username: "leslie", password: "leslie2025" },
-  { name: "Stockbridge", location: "Stockbridge Rd", username: "stockbridge", password: "stockbridge2025" },
+  { name: "Zeeb", location: "Zeeb Rd" },
+  { name: "Baker", location: "Baker Rd" },
+  { name: "Leslie", location: "Leslie Ave" },
+  { name: "Stockbridge", location: "Stockbridge Rd" },
 ];
 
 const SUPERVISORS = [
-  { username: "admin", password: "admin123", name: "Alex Johnson" },
-  { username: "supervisor", password: "pass123", name: "Maria Garcia" },
+  { username: "admin", password: "admin123", name: "Alex Johnson", role: "admin" as const },
+  { username: "supervisor", password: "pass123", name: "Maria Garcia", role: "supervisor" as const },
 ];
 
 const EQUIPMENT_SEEDS = [
@@ -97,7 +98,8 @@ async function seed() {
   console.log("🌱 Seeding database...");
 
   await db.delete(supervisorSessionsTable);
-  await db.delete(restaurantSessionsTable);
+  await db.delete(deviceSessionsTable);
+  await db.delete(pairingCodesTable);
   await db.delete(commentsTable);
   await db.delete(issuesTable);
   await db.delete(supervisorsTable);
@@ -110,8 +112,6 @@ async function seed() {
       RESTAURANTS.map((r) => ({
         name: r.name,
         location: r.location,
-        username: r.username,
-        passwordHash: hashPassword(r.password),
       }))
     )
     .returning();
@@ -124,6 +124,7 @@ async function seed() {
         username: s.username,
         passwordHash: hashPassword(s.password),
         name: s.name,
+        role: s.role,
       }))
     )
     .returning();
@@ -319,10 +320,10 @@ async function seed() {
 
   console.log("✅ Seed complete!");
   console.log("\nTest accounts:");
-  console.log("Supervisor: admin / admin123");
-  console.log("Supervisor: supervisor / pass123");
-  console.log("Restaurant accounts:");
-  RESTAURANTS.forEach((r) => console.log(`  ${r.name}: ${r.username} / ${r.password}`));
+  console.log("Admin:      admin / admin123  (role: admin)");
+  console.log("Supervisor: supervisor / pass123  (role: supervisor)");
+  console.log("\nRestaurants (pair via admin pairing code):");
+  RESTAURANTS.forEach((r) => console.log(`  ${r.name} — ${r.location}`));
   process.exit(0);
 }
 

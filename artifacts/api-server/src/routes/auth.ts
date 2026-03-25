@@ -1,34 +1,26 @@
 import { Router, type IRouter } from "express";
-import { db, restaurantsTable, supervisorsTable, restaurantSessionsTable, supervisorSessionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { generateToken, verifyPassword, extractToken, getRestaurantFromToken, getSupervisorFromToken } from "../lib/auth";
-import { RestaurantLoginBody, SupervisorLoginBody } from "@workspace/api-zod";
+import {
+  db,
+  restaurantsTable,
+  supervisorsTable,
+  supervisorSessionsTable,
+  deviceSessionsTable,
+  pairingCodesTable,
+} from "@workspace/db";
+import { and, eq, isNull } from "drizzle-orm";
+import {
+  generateToken,
+  verifyPassword,
+  extractToken,
+  getRestaurantFromToken,
+  getSupervisorFromToken,
+} from "../lib/auth";
+import { SupervisorLoginBody } from "@workspace/api-zod";
+import crypto from "crypto";
 
 const router: IRouter = Router();
 
-router.post("/auth/restaurant/login", async (req, res) => {
-  const body = RestaurantLoginBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: "Username and password are required" });
-    return;
-  }
-  const [restaurant] = await db
-    .select()
-    .from(restaurantsTable)
-    .where(eq(restaurantsTable.username, body.data.username))
-    .limit(1);
-  if (!restaurant || !verifyPassword(body.data.password, restaurant.passwordHash)) {
-    res.status(401).json({ error: "Invalid username or password" });
-    return;
-  }
-  const token = generateToken();
-  await db.insert(restaurantSessionsTable).values({ token, restaurantId: restaurant.id });
-  res.json({
-    token,
-    restaurant: { id: restaurant.id, name: restaurant.name, location: restaurant.location, createdAt: restaurant.createdAt },
-  });
-});
-
+// POST /api/auth/supervisor/login — works for both admin and supervisor roles
 router.post("/auth/supervisor/login", async (req, res) => {
   const body = SupervisorLoginBody.safeParse(req.body);
   if (!body.success) {
@@ -48,10 +40,16 @@ router.post("/auth/supervisor/login", async (req, res) => {
   await db.insert(supervisorSessionsTable).values({ token, supervisorId: supervisor.id });
   res.json({
     token,
-    supervisor: { id: supervisor.id, username: supervisor.username, name: supervisor.name },
+    supervisor: {
+      id: supervisor.id,
+      username: supervisor.username,
+      name: supervisor.name,
+      role: supervisor.role,
+    },
   });
 });
 
+// POST /api/auth/supervisor/logout
 router.post("/auth/supervisor/logout", async (req, res) => {
   const token = extractToken(req);
   if (token) {
@@ -60,6 +58,7 @@ router.post("/auth/supervisor/logout", async (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/auth/supervisor/push-token — register Expo push token
 router.post("/auth/supervisor/push-token", async (req, res) => {
   const token = extractToken(req);
   const supervisor = await getSupervisorFromToken(token);
@@ -82,24 +81,180 @@ router.post("/auth/supervisor/push-token", async (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/auth/admin/pairing-code — admin generates a pairing code for a restaurant
+router.post("/auth/admin/pairing-code", async (req, res) => {
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor || supervisor.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  const { restaurantId } = req.body;
+  if (!restaurantId || typeof restaurantId !== "number") {
+    res.status(400).json({ error: "restaurantId (number) is required" });
+    return;
+  }
+
+  const [restaurant] = await db
+    .select()
+    .from(restaurantsTable)
+    .where(eq(restaurantsTable.id, restaurantId))
+    .limit(1);
+  if (!restaurant) {
+    res.status(404).json({ error: "Restaurant not found" });
+    return;
+  }
+
+  // 6-char uppercase alphanumeric pairing code, expires in 15 minutes
+  const code = crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await db.insert(pairingCodesTable).values({ code, restaurantId, expiresAt });
+
+  res.json({ code, expiresAt, restaurantName: restaurant.name });
+});
+
+// POST /api/auth/device/pair — tablet enters code to create a long-lived device session
+router.post("/auth/device/pair", async (req, res) => {
+  const { code } = req.body;
+  if (!code || typeof code !== "string") {
+    res.status(400).json({ error: "Pairing code is required" });
+    return;
+  }
+
+  const normalized = code.toUpperCase().trim();
+
+  const [pairingCode] = await db
+    .select()
+    .from(pairingCodesTable)
+    .where(eq(pairingCodesTable.code, normalized))
+    .limit(1);
+
+  if (!pairingCode) {
+    res.status(404).json({ error: "Invalid pairing code" });
+    return;
+  }
+
+  if (pairingCode.usedAt) {
+    res.status(409).json({ error: "This pairing code has already been used" });
+    return;
+  }
+
+  if (new Date() > pairingCode.expiresAt) {
+    res.status(410).json({ error: "This pairing code has expired" });
+    return;
+  }
+
+  // Mark code as used (one-time only)
+  await db
+    .update(pairingCodesTable)
+    .set({ usedAt: new Date() })
+    .where(eq(pairingCodesTable.id, pairingCode.id));
+
+  // Create long-lived device session
+  const sessionToken = generateToken();
+  await db.insert(deviceSessionsTable).values({
+    token: sessionToken,
+    restaurantId: pairingCode.restaurantId,
+  });
+
+  const [restaurant] = await db
+    .select()
+    .from(restaurantsTable)
+    .where(eq(restaurantsTable.id, pairingCode.restaurantId))
+    .limit(1);
+
+  res.json({
+    token: sessionToken,
+    restaurant: {
+      id: restaurant.id,
+      name: restaurant.name,
+      location: restaurant.location,
+      createdAt: restaurant.createdAt,
+    },
+  });
+});
+
+// GET /api/auth/admin/device-sessions — list all device sessions (admin only)
+router.get("/auth/admin/device-sessions", async (req, res) => {
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor || supervisor.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  const sessions = await db
+    .select({
+      id: deviceSessionsTable.id,
+      restaurantId: deviceSessionsTable.restaurantId,
+      restaurantName: restaurantsTable.name,
+      revokedAt: deviceSessionsTable.revokedAt,
+      createdAt: deviceSessionsTable.createdAt,
+    })
+    .from(deviceSessionsTable)
+    .innerJoin(restaurantsTable, eq(deviceSessionsTable.restaurantId, restaurantsTable.id))
+    .where(isNull(deviceSessionsTable.revokedAt));
+
+  res.json(sessions);
+});
+
+// DELETE /api/auth/admin/device-sessions/:id — revoke a device session
+router.delete("/auth/admin/device-sessions/:id", async (req, res) => {
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor || supervisor.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid session ID" });
+    return;
+  }
+
+  await db
+    .update(deviceSessionsTable)
+    .set({ revokedAt: new Date() })
+    .where(eq(deviceSessionsTable.id, id));
+
+  res.json({ success: true });
+});
+
+// GET /api/auth/me — return current user info
 router.get("/auth/me", async (req, res) => {
   const token = extractToken(req);
+
   const restaurant = await getRestaurantFromToken(token);
   if (restaurant) {
     res.json({
       type: "restaurant",
-      restaurant: { id: restaurant.id, name: restaurant.name, location: restaurant.location, createdAt: restaurant.createdAt },
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        location: restaurant.location,
+        createdAt: restaurant.createdAt,
+      },
     });
     return;
   }
+
   const supervisor = await getSupervisorFromToken(token);
   if (supervisor) {
     res.json({
       type: "supervisor",
-      supervisor: { id: supervisor.id, username: supervisor.username, name: supervisor.name },
+      supervisor: {
+        id: supervisor.id,
+        username: supervisor.username,
+        name: supervisor.name,
+        role: supervisor.role,
+      },
     });
     return;
   }
+
   res.status(401).json({ error: "Not authenticated" });
 });
 

@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
 
 type EquipmentItemRow = {
   id: number;
@@ -28,11 +30,17 @@ type EquipmentItemRow = {
   sortOrder: number;
 };
 
+type RestaurantRow = { id: number; name: string; location: string };
+type GeneratedCode = { code: string; expiresAt: string; restaurantName: string };
+
 type Area = "Front Counter" | "Grill" | "Back of House" | "Technology";
 const AREAS: Area[] = ["Front Counter", "Grill", "Back of House", "Technology"];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { supervisor } = useAuth();
+  const isAdmin = supervisor?.role === "admin";
+
   const [items, setItems] = useState<EquipmentItemRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedArea, setSelectedArea] = useState<Area>("Front Counter");
@@ -42,19 +50,30 @@ export default function SettingsScreen() {
   const [newItemName, setNewItemName] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Admin — device pairing state
+  const [restaurants, setRestaurants] = useState<RestaurantRow[]>([]);
+  const [pairingRestaurantId, setPairingRestaurantId] = useState<number | null>(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<GeneratedCode | null>(null);
+  const [codeModalVisible, setCodeModalVisible] = useState(false);
+
   const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const loadItems = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await customFetch<EquipmentItemRow[]>("/api/equipment/items");
-      setItems(data);
+      const [equipData, restData] = await Promise.all([
+        customFetch<EquipmentItemRow[]>("/api/equipment/items"),
+        isAdmin ? customFetch<RestaurantRow[]>("/api/restaurants") : Promise.resolve([]),
+      ]);
+      setItems(equipData);
+      if (isAdmin) setRestaurants(restData);
     } catch {
-      Alert.alert("Error", "Failed to load equipment list.");
+      Alert.alert("Error", "Failed to load settings.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,14 +142,86 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleGeneratePairingCode = async () => {
+    if (!pairingRestaurantId || pairingLoading) return;
+    setPairingLoading(true);
+    try {
+      const result = await customFetch<GeneratedCode>("/api/auth/admin/pairing-code", {
+        method: "POST",
+        body: JSON.stringify({ restaurantId: pairingRestaurantId }),
+      });
+      setGeneratedCode(result);
+      setCodeModalVisible(true);
+    } catch {
+      Alert.alert("Error", "Failed to generate pairing code.");
+    } finally {
+      setPairingLoading(false);
+    }
+  };
+
+  const getExpiryMinutes = (expiresAt: string) => {
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    return Math.max(0, Math.round(diff / 60000));
+  };
+
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Equipment Settings</Text>
+        <Text style={styles.headerTitle}>Settings</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
           <Feather name="plus" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+
+      {/* Admin-only: Device Pairing */}
+      {isAdmin && (
+        <View style={styles.pairingSection}>
+          <View style={styles.pairingSectionHeader}>
+            <Feather name="link" size={16} color={Colors.primary} />
+            <Text style={styles.pairingSectionTitle}>Device Pairing</Text>
+          </View>
+          <Text style={styles.pairingSectionSubtitle}>
+            Generate a one-time code to pair a restaurant tablet
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.restaurantScroll}
+            contentContainerStyle={styles.restaurantScrollContent}
+          >
+            {restaurants.map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={[styles.restaurantChip, pairingRestaurantId === r.id && styles.restaurantChipActive]}
+                onPress={() => setPairingRestaurantId(r.id)}
+              >
+                <Text
+                  style={[styles.restaurantChipText, pairingRestaurantId === r.id && styles.restaurantChipTextActive]}
+                  numberOfLines={1}
+                >
+                  {r.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity
+            style={[styles.generateBtn, (!pairingRestaurantId || pairingLoading) && styles.generateBtnDisabled]}
+            onPress={handleGeneratePairingCode}
+            disabled={!pairingRestaurantId || pairingLoading}
+          >
+            {pairingLoading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Feather name="key" size={15} color="#FFFFFF" />
+                <Text style={styles.generateBtnText}>Generate Pairing Code</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <Text style={styles.sectionLabel}>Equipment Catalog</Text>
 
       <View style={styles.areaTabs}>
         {AREAS.map((area) => (
@@ -187,6 +278,41 @@ export default function SettingsScreen() {
         />
       )}
 
+      {/* Pairing code result modal */}
+      <Modal
+        visible={codeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCodeModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setCodeModalVisible(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.codeModalHeader}>
+              <Feather name="check-circle" size={28} color={Colors.success} />
+              <Text style={styles.codeModalTitle}>Pairing Code Ready</Text>
+            </View>
+            {generatedCode && (
+              <>
+                <Text style={styles.codeModalRestaurant}>{generatedCode.restaurantName}</Text>
+                <View style={styles.codeDisplay}>
+                  <Text style={styles.codeText}>{generatedCode.code}</Text>
+                </View>
+                <Text style={styles.codeExpiry}>
+                  Expires in ~{getExpiryMinutes(generatedCode.expiresAt)} minutes · One-time use
+                </Text>
+              </>
+            )}
+            <TouchableOpacity
+              style={styles.modalSave}
+              onPress={() => { setCodeModalVisible(false); setGeneratedCode(null); setPairingRestaurantId(null); }}
+            >
+              <Text style={styles.modalSaveText}>Done</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Rename modal */}
       <Modal
         visible={!!editingItem}
         transparent
@@ -205,10 +331,7 @@ export default function SettingsScreen() {
               onSubmitEditing={handleRename}
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={() => setEditingItem(null)}
-              >
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setEditingItem(null)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -227,6 +350,7 @@ export default function SettingsScreen() {
         </Pressable>
       </Modal>
 
+      {/* Add item modal */}
       <Modal
         visible={addModalVisible}
         transparent
@@ -298,6 +422,87 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // Admin device pairing section
+  pairingSection: {
+    backgroundColor: Colors.surface,
+    marginHorizontal: 12,
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pairingSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  pairingSectionTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  pairingSectionSubtitle: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginBottom: 12,
+  },
+  restaurantScroll: {
+    marginBottom: 12,
+  },
+  restaurantScrollContent: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  restaurantChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  restaurantChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  restaurantChipText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
+  },
+  restaurantChipTextActive: {
+    color: "#FFFFFF",
+  },
+  generateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  generateBtnDisabled: {
+    opacity: 0.45,
+  },
+  generateBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FFFFFF",
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
   areaTabs: {
     flexDirection: "row",
@@ -385,6 +590,48 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
   },
+  // Code display modal styles
+  codeModalHeader: {
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 4,
+  },
+  codeModalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  codeModalRestaurant: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  codeDisplay: {
+    backgroundColor: Colors.background,
+    borderRadius: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  codeText: {
+    fontSize: 38,
+    fontFamily: "Inter_700Bold",
+    color: Colors.primary,
+    letterSpacing: 10,
+  },
+  codeExpiry: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  // Shared modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

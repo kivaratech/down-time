@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { restaurantLogin, supervisorLogin } from "@workspace/api-client-react";
+import { supervisorLogin } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -19,11 +19,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 
-type Mode = "choose" | "restaurant" | "supervisor";
+type Mode = "choose" | "supervisor";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { loginRestaurant, loginSupervisor } = useAuth();
+  const { loginSupervisor } = useAuth();
   const [mode, setMode] = useState<Mode>("choose");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -40,30 +40,18 @@ export default function LoginScreen() {
     setError("");
   }
 
-  const handleRestaurantLogin = async () => {
-    if (!username.trim() || !password || loading) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await restaurantLogin({ username: username.trim(), password });
-      await loginRestaurant(res.token, res.restaurant);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(restaurant)");
-    } catch {
-      setError("Invalid username or password. Please try again.");
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSupervisorLogin = async () => {
     if (!username.trim() || !password || loading) return;
     setLoading(true);
     setError("");
     try {
       const res = await supervisorLogin({ username: username.trim(), password });
-      await loginSupervisor(res.token, res.supervisor);
+      await loginSupervisor(res.token, {
+        id: res.supervisor.id,
+        username: res.supervisor.username,
+        name: res.supervisor.name,
+        role: (res.supervisor as { role?: string }).role as "admin" | "supervisor" ?? "supervisor",
+      });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(supervisor)");
     } catch {
@@ -73,10 +61,6 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
-
-  const isRestaurant = mode === "restaurant";
-  const isSupervisor = mode === "supervisor";
-  const formMode = isRestaurant || isSupervisor;
 
   return (
     <KeyboardAvoidingView
@@ -103,37 +87,37 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={styles.choiceCard}
-              onPress={() => { setMode("restaurant"); reset(); }}
+              onPress={() => { setMode("supervisor"); reset(); }}
               activeOpacity={0.75}
             >
-              <View style={[styles.choiceIcon, { backgroundColor: Colors.primaryLight }]}>
-                <Feather name="home" size={28} color="#FFFFFF" />
+              <View style={[styles.choiceIcon, { backgroundColor: Colors.primary }]}>
+                <Feather name="layers" size={28} color="#FFFFFF" />
               </View>
               <View style={styles.choiceText}>
-                <Text style={styles.choiceTitle}>Restaurant iPad</Text>
-                <Text style={styles.choiceSubtitle}>Shared restaurant account login</Text>
+                <Text style={styles.choiceTitle}>Supervisor / Admin Login</Text>
+                <Text style={styles.choiceSubtitle}>Individual login with username & password</Text>
               </View>
               <Feather name="chevron-right" size={22} color={Colors.textTertiary} />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.choiceCard}
-              onPress={() => { setMode("supervisor"); reset(); }}
+              onPress={() => router.push("/pair")}
               activeOpacity={0.75}
             >
               <View style={[styles.choiceIcon, { backgroundColor: Colors.accent }]}>
-                <Feather name="layers" size={28} color="#FFFFFF" />
+                <Feather name="link" size={28} color="#FFFFFF" />
               </View>
               <View style={styles.choiceText}>
-                <Text style={styles.choiceTitle}>Supervisor</Text>
-                <Text style={styles.choiceSubtitle}>Individual login with username & password</Text>
+                <Text style={styles.choiceTitle}>Pair Restaurant Device</Text>
+                <Text style={styles.choiceSubtitle}>Enter pairing code from your admin</Text>
               </View>
               <Feather name="chevron-right" size={22} color={Colors.textTertiary} />
             </TouchableOpacity>
           </View>
         )}
 
-        {formMode && (
+        {mode === "supervisor" && (
           <View style={styles.formContainer}>
             <TouchableOpacity
               style={styles.backBtn}
@@ -143,14 +127,8 @@ export default function LoginScreen() {
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
 
-            <Text style={styles.formTitle}>
-              {isRestaurant ? "Restaurant Login" : "Supervisor Login"}
-            </Text>
-            <Text style={styles.formSubtitle}>
-              {isRestaurant
-                ? "Sign in with your shared restaurant account"
-                : "Enter your individual supervisor credentials"}
-            </Text>
+            <Text style={styles.formTitle}>Supervisor / Admin Login</Text>
+            <Text style={styles.formSubtitle}>Enter your individual credentials</Text>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Username</Text>
@@ -185,7 +163,7 @@ export default function LoginScreen() {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   returnKeyType="done"
-                  onSubmitEditing={isRestaurant ? handleRestaurantLogin : handleSupervisorLogin}
+                  onSubmitEditing={handleSupervisorLogin}
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Feather
@@ -201,24 +179,16 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={[styles.loginBtn, (loading || !username.trim() || !password) && styles.loginBtnDisabled]}
-              onPress={isRestaurant ? handleRestaurantLogin : handleSupervisorLogin}
+              onPress={handleSupervisorLogin}
               disabled={loading || !username.trim() || !password}
               activeOpacity={0.8}
             >
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.loginBtnText}>
-                  {isRestaurant ? "Sign In to Restaurant" : "Sign In"}
-                </Text>
+                <Text style={styles.loginBtnText}>Sign In</Text>
               )}
             </TouchableOpacity>
-
-            {isRestaurant && (
-              <Text style={styles.hint}>
-                Use the shared account for your restaurant location
-              </Text>
-            )}
           </View>
         )}
       </ScrollView>
@@ -408,12 +378,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
-  },
-  hint: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    marginTop: 16,
   },
 });

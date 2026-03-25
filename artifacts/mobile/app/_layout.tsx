@@ -44,6 +44,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="pair" />
       <Stack.Screen name="(restaurant)" />
       <Stack.Screen name="(supervisor)" />
       <Stack.Screen
