@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { customFetch } from "@workspace/api-client-react";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -170,6 +170,7 @@ export default function SettingsScreen() {
     setLoggingOut(true);
     try {
       await logout();
+      router.replace("/login");
     } catch {
       Alert.alert("Error", "Failed to log out.");
       setLoggingOut(false);
