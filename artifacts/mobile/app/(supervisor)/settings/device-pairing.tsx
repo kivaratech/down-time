@@ -31,6 +31,8 @@ export default function DevicePairingScreen() {
   const [codeModalVisible, setCodeModalVisible] = useState(false);
   const [deviceSessions, setDeviceSessions] = useState<DeviceSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [revokeTarget, setRevokeTarget] = useState<DeviceSession | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
@@ -74,25 +76,22 @@ export default function DevicePairingScreen() {
   };
 
   const handleRevokeSession = (session: DeviceSession) => {
-    Alert.alert(
-      "Disconnect Device",
-      `Remove the tablet paired to ${session.restaurantName}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Disconnect",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await customFetch(`/api/auth/admin/device-sessions/${session.id}`, { method: "DELETE" });
-              setDeviceSessions((prev) => prev.filter((s) => s.id !== session.id));
-            } catch {
-              Alert.alert("Error", "Failed to disconnect device.");
-            }
-          },
-        },
-      ]
-    );
+    setRevokeTarget(session);
+  };
+
+  const doRevoke = async () => {
+    if (!revokeTarget || revoking) return;
+    setRevoking(true);
+    try {
+      await customFetch(`/api/auth/admin/device-sessions/${revokeTarget.id}`, { method: "DELETE" });
+      setDeviceSessions((prev) => prev.filter((s) => s.id !== revokeTarget.id));
+      setRevokeTarget(null);
+    } catch {
+      setRevokeTarget(null);
+      Alert.alert("Error", "Failed to disconnect device.");
+    } finally {
+      setRevoking(false);
+    }
   };
 
   const getExpiryMinutes = (expiresAt: string) => {
@@ -205,6 +204,45 @@ export default function DevicePairingScreen() {
           </View>
         </ScrollView>
       )}
+
+      {/* Revoke confirm modal */}
+      <Modal
+        visible={!!revokeTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRevokeTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Disconnect Device</Text>
+            <Text style={styles.confirmBody}>
+              Remove the tablet paired to{" "}
+              <Text style={{ fontFamily: "Inter_600SemiBold" }}>{revokeTarget?.restaurantName}</Text>?
+              {"\n"}The device will need to be re-paired to access the app.
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setRevokeTarget(null)}
+                disabled={revoking}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmConfirm, styles.confirmDanger]}
+                onPress={doRevoke}
+                disabled={revoking}
+              >
+                {revoking ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmConfirmText}>Disconnect</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Pairing code modal */}
       <Modal
@@ -464,6 +502,60 @@ const styles = StyleSheet.create({
   },
   modalSaveText: {
     fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FFFFFF",
+  },
+  confirmBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    maxWidth: 340,
+    width: "90%",
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  confirmBody: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  confirmConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+  },
+  confirmDanger: {
+    backgroundColor: Colors.accent,
+  },
+  confirmConfirmText: {
+    fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: "#FFFFFF",
   },
