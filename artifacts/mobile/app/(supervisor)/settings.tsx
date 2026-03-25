@@ -38,8 +38,9 @@ const AREAS: Area[] = ["Front Counter", "Grill", "Back of House", "Technology"];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { supervisor } = useAuth();
+  const { supervisor, logout } = useAuth();
   const isAdmin = supervisor?.role === "admin";
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const [items, setItems] = useState<EquipmentItemRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,12 +165,31 @@ export default function SettingsScreen() {
     return Math.max(0, Math.round(diff / 60000));
   };
 
+  const handleLogout = async () => {
+    Alert.alert("Log Out", "Sign out of your account?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: async () => {
+          setLoggingOut(true);
+          try {
+            await logout();
+          } catch {
+            Alert.alert("Error", "Failed to log out.");
+            setLoggingOut(false);
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Settings</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
-          <Feather name="plus" size={20} color="#FFFFFF" />
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} disabled={loggingOut}>
+          <Feather name="log-out" size={20} color={Colors.accent} />
         </TouchableOpacity>
       </View>
 
@@ -272,8 +292,16 @@ export default function SettingsScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No items in {selectedArea}.</Text>
-              <Text style={styles.emptySubText}>Tap + to add one.</Text>
             </View>
+          }
+          ListFooterComponent={
+            <TouchableOpacity
+              style={styles.addEquipmentFooter}
+              onPress={() => setAddModalVisible(true)}
+            >
+              <Feather name="plus" size={18} color={Colors.surface} />
+              <Text style={styles.addEquipmentFooterText}>Add Equipment</Text>
+            </TouchableOpacity>
           }
         />
       )}
@@ -415,13 +443,28 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
-  addBtn: {
-    backgroundColor: Colors.primary,
+  logoutBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  addEquipmentFooter: {
+    backgroundColor: Colors.primary,
+    marginHorizontal: 12,
+    marginVertical: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  addEquipmentFooterText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.surface,
   },
   // Admin device pairing section
   pairingSection: {
