@@ -93,9 +93,18 @@ export default function SupervisorIssuesScreen() {
 
   const { data: issues, isLoading, refetch, isRefetching } = useListIssues(queryParams);
 
-  const filteredIssues = areaFilter === "all"
+  let filteredIssues = areaFilter === "all"
     ? (issues ?? [])
     : (issues ?? []).filter((i) => i.area === areaFilter);
+
+  // Sort resolved issues by age (oldest first)
+  if (statusFilter === "resolved") {
+    filteredIssues = [...filteredIssues].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateA - dateB; // Oldest first
+    });
+  }
 
   const topPadding = Platform.OS === "web"
     ? insets.top + 67
