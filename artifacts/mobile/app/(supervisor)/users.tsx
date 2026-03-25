@@ -66,6 +66,9 @@ export default function UsersScreen() {
   const [newPassword, setNewPassword] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  const [confirmUser, setConfirmUser] = useState<UserRow | null>(null);
+  const [toggling, setToggling] = useState(false);
+
   const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const fetchUsers = useCallback(async () => {
@@ -156,31 +159,22 @@ export default function UsersScreen() {
     }
   }
 
-  function confirmToggleActive(user: UserRow) {
-    const action = user.isActive ? "deactivate" : "reactivate";
-    Alert.alert(
-      `${user.isActive ? "Deactivate" : "Reactivate"} Account`,
-      `Are you sure you want to ${action} ${user.name}'s account?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: user.isActive ? "Deactivate" : "Reactivate",
-          style: user.isActive ? "destructive" : "default",
-          onPress: () => toggleActive(user),
-        },
-      ]
-    );
-  }
-
-  async function toggleActive(user: UserRow) {
+  async function doToggleActive() {
+    if (!confirmUser) return;
+    const user = confirmUser;
+    setToggling(true);
     const endpoint = user.isActive
       ? `/api/admin/users/${user.id}/deactivate`
       : `/api/admin/users/${user.id}/activate`;
     try {
       await customFetch(endpoint, { method: "POST" });
+      setConfirmUser(null);
       fetchUsers();
     } catch (err: any) {
+      setConfirmUser(null);
       Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
+    } finally {
+      setToggling(false);
     }
   }
 
@@ -245,7 +239,7 @@ export default function UsersScreen() {
               user={item}
               currentSupervisorId={supervisor?.id ?? -1}
               onEdit={() => openEdit(item)}
-              onToggleActive={() => confirmToggleActive(item)}
+              onToggleActive={() => setConfirmUser(item)}
               onResetPassword={() => openResetPassword(item)}
             />
           )}
@@ -397,6 +391,52 @@ export default function UsersScreen() {
             />
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Deactivate / Reactivate Confirmation Modal */}
+      <Modal
+        visible={!!confirmUser}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmUser(null)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>
+              {confirmUser?.isActive ? "Deactivate Account" : "Reactivate Account"}
+            </Text>
+            <Text style={styles.confirmBody}>
+              {confirmUser?.isActive
+                ? `${confirmUser?.name} will be signed out and unable to log in until reactivated.`
+                : `${confirmUser?.name} will be able to log in again.`}
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setConfirmUser(null)}
+                disabled={toggling}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.confirmConfirm,
+                  confirmUser?.isActive ? styles.confirmDanger : styles.confirmSuccess,
+                ]}
+                onPress={doToggleActive}
+                disabled={toggling}
+              >
+                {toggling ? (
+                  <ActivityIndicator color={Colors.surface} size="small" />
+                ) : (
+                  <Text style={styles.confirmConfirmText}>
+                    {confirmUser?.isActive ? "Deactivate" : "Reactivate"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -741,5 +781,71 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 8,
     marginTop: 4,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  confirmBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 360,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  confirmBody: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  confirmConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmDanger: {
+    backgroundColor: Colors.accent,
+  },
+  confirmSuccess: {
+    backgroundColor: Colors.success,
+  },
+  confirmConfirmText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.surface,
   },
 });
