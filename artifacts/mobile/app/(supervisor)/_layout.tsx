@@ -6,9 +6,8 @@ import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
 
-function NativeTabLayout({ isAdmin }: { isAdmin: boolean }) {
+function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -19,12 +18,6 @@ function NativeTabLayout({ isAdmin }: { isAdmin: boolean }) {
         <Icon sf={{ default: "list.clipboard", selected: "list.clipboard.fill" }} />
         <Label>All Issues</Label>
       </NativeTabs.Trigger>
-      {isAdmin && (
-        <NativeTabs.Trigger name="users">
-          <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
-          <Label>Users</Label>
-        </NativeTabs.Trigger>
-      )}
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>Settings</Label>
@@ -33,7 +26,7 @@ function NativeTabLayout({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
+function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -88,19 +81,6 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
         }}
       />
       <Tabs.Screen
-        name="users"
-        options={{
-          title: "Users",
-          href: isAdmin ? undefined : null,
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.2" tintColor={color} size={24} />
-            ) : (
-              <Feather name="users" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
@@ -113,6 +93,10 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
         }}
       />
       <Tabs.Screen
+        name="users"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="report"
         options={{ href: null }}
       />
@@ -121,11 +105,8 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
 }
 
 export default function SupervisorLayout() {
-  const { supervisor } = useAuth();
-  const isAdmin = supervisor?.role === "admin";
-
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout isAdmin={isAdmin} />;
+    return <NativeTabLayout />;
   }
-  return <ClassicTabLayout isAdmin={isAdmin} />;
+  return <ClassicTabLayout />;
 }
