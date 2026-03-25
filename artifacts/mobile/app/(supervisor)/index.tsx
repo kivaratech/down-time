@@ -135,21 +135,22 @@ export default function SupervisorDashboardScreen() {
   const totalInProgress = allIssues?.filter((i) => i.status === "in_progress").length ?? 0;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.scrollContent,
-        { paddingTop: topPadding + 20, paddingBottom: insets.bottom + 100 },
-      ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefetching}
-          onRefresh={refetch}
-          tintColor={Colors.primary}
-        />
-      }
-    >
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: topPadding + 20, paddingBottom: insets.bottom + 100 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={Colors.primary}
+          />
+        }
+      >
       {/* Supervisor Header */}
       <View style={styles.pageHeader}>
         <View>
@@ -241,6 +242,7 @@ export default function SupervisorDashboardScreen() {
         </View>
       </View>
     </Modal>
+    </>
   );
 }
 
