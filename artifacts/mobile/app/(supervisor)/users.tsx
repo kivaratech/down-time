@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -72,11 +71,10 @@ export default function UsersScreen() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await customFetch("/api/admin/users");
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      }
+      const data = await customFetch<UserRow[]>("/api/admin/users");
+      setUsers(data);
+    } catch {
+      // silently fail — user will see empty list
     } finally {
       setLoading(false);
     }
@@ -120,20 +118,20 @@ export default function UsersScreen() {
     setSaving(true);
     setFormError("");
     try {
-      let res: Response;
       if (editingUser) {
         const body: Record<string, any> = {
           username: form.username.trim(),
           name: form.name.trim(),
           role: form.role,
+          email: form.email.trim() || null,
         };
-        if (form.email.trim()) body.email = form.email.trim();
-        else body.email = null;
-        res = await customFetch(`/api/admin/users/${editingUser.id}`, {
+        await customFetch(`/api/admin/users/${editingUser.id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        setFormVisible(false);
+        fetchUsers();
+        Alert.alert("Saved", `${form.name.trim()}'s account has been updated.`);
       } else {
         const body: Record<string, any> = {
           username: form.username.trim(),
@@ -142,19 +140,17 @@ export default function UsersScreen() {
           role: form.role,
         };
         if (form.email.trim()) body.email = form.email.trim();
-        res = await customFetch("/api/admin/users", {
+        await customFetch("/api/admin/users", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-      }
-      if (res.ok) {
         setFormVisible(false);
         fetchUsers();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setFormError(err.error ?? "Something went wrong.");
+        Alert.alert("Account Created", `${form.name.trim()} can now log in with username "${form.username.trim()}".`);
       }
+    } catch (err: any) {
+      const message = err?.data?.error ?? err?.message ?? "Something went wrong.";
+      setFormError(message);
     } finally {
       setSaving(false);
     }
@@ -180,12 +176,11 @@ export default function UsersScreen() {
     const endpoint = user.isActive
       ? `/api/admin/users/${user.id}/deactivate`
       : `/api/admin/users/${user.id}/activate`;
-    const res = await customFetch(endpoint, { method: "POST" });
-    if (res.ok) {
+    try {
+      await customFetch(endpoint, { method: "POST" });
       fetchUsers();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      Alert.alert("Error", err.error ?? "Something went wrong.");
+    } catch (err: any) {
+      Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
     }
   }
 
@@ -202,21 +197,17 @@ export default function UsersScreen() {
     }
     setResetting(true);
     try {
-      const res = await customFetch(
+      await customFetch(
         `/api/admin/users/${resetTargetUser!.id}/reset-password`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ newPassword }),
         }
       );
-      if (res.ok) {
-        setResetModalVisible(false);
-        Alert.alert("Success", `Password reset for ${resetTargetUser!.name}.`);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        Alert.alert("Error", err.error ?? "Something went wrong.");
-      }
+      setResetModalVisible(false);
+      Alert.alert("Password Reset", `New password set for ${resetTargetUser!.name}. Their existing sessions have been signed out.`);
+    } catch (err: any) {
+      Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
     } finally {
       setResetting(false);
     }
