@@ -41,6 +41,7 @@ export default function SettingsScreen() {
   const { supervisor, logout } = useAuth();
   const isAdmin = supervisor?.role === "admin";
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const [items, setItems] = useState<EquipmentItemRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,30 +166,21 @@ export default function SettingsScreen() {
     return Math.max(0, Math.round(diff / 60000));
   };
 
-  const handleLogout = async () => {
-    Alert.alert("Log Out", "Sign out of your account?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: async () => {
-          setLoggingOut(true);
-          try {
-            await logout();
-          } catch {
-            Alert.alert("Error", "Failed to log out.");
-            setLoggingOut(false);
-          }
-        },
-      },
-    ]);
+  const doLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      Alert.alert("Error", "Failed to log out.");
+      setLoggingOut(false);
+    }
   };
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Settings</Text>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} disabled={loggingOut}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={() => setShowLogoutConfirm(true)} disabled={loggingOut}>
           <Feather name="log-out" size={20} color={Colors.accent} />
         </TouchableOpacity>
       </View>
@@ -419,6 +411,44 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        visible={showLogoutConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutConfirm(false)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Log Out</Text>
+            <Text style={styles.confirmBody}>Sign out of your account?</Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setShowLogoutConfirm(false)}
+                disabled={loggingOut}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmConfirm, styles.confirmDanger]}
+                onPress={() => {
+                  setShowLogoutConfirm(false);
+                  doLogout();
+                }}
+                disabled={loggingOut}
+              >
+                {loggingOut ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmConfirmText}>Log Out</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -736,6 +766,70 @@ const styles = StyleSheet.create({
   modalSaveText: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
+    color: "#FFFFFF",
+  },
+  // Logout confirmation modal
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  confirmBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 360,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  confirmBody: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  confirmConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmDanger: {
+    backgroundColor: Colors.accent,
+  },
+  confirmConfirmText: {
+    fontSize: 15,
+    fontWeight: "700",
     color: "#FFFFFF",
   },
 });
