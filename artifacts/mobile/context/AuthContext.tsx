@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuthTokenGetter, supervisorLogout, getMe } from "@workspace/api-client-react";
+import { queryClient } from "@/lib/queryClient";
 import React, {
   createContext,
   useCallback,
@@ -98,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginRestaurant = useCallback(
     async (newToken: string, rest: Restaurant) => {
+      queryClient.clear();
       const { id, name, location, createdAt } = rest;
       const safeRest: Restaurant = { id, name, location, createdAt };
       await AsyncStorage.multiSet([
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginSupervisor = useCallback(
     async (newToken: string, sup: Supervisor) => {
+      queryClient.clear();
       await AsyncStorage.multiSet([
         [TOKEN_KEY, newToken],
         [AUTH_TYPE_KEY, "supervisor"],
@@ -136,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
       }
     }
+    queryClient.clear();
     await AsyncStorage.multiRemove([
       TOKEN_KEY,
       AUTH_TYPE_KEY,

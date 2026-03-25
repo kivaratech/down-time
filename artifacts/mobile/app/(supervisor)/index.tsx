@@ -115,13 +115,15 @@ export default function SupervisorDashboardScreen() {
   };
 
   const { data: restaurants, isLoading: restaurantsLoading } = useQuery({
-    queryKey: ["restaurants"],
+    queryKey: ["restaurants", supervisor?.id],
     queryFn: listRestaurants,
+    staleTime: 0,
   });
 
   const { data: allIssues, isLoading: issuesLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["supervisor-issues-all"],
+    queryKey: ["supervisor-issues-all", supervisor?.id],
     queryFn: () => listIssues({ status: "all" }),
+    staleTime: 0,
   });
 
   const topPadding = Platform.OS === "web"
