@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { customFetch } from "@workspace/api-client-react";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -103,7 +103,11 @@ export default function DevicePairingScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Feather name="chevron-left" size={26} color={Colors.primary} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Device Pairing</Text>
+        <View style={styles.backBtn} />
       </View>
 
       {loading ? (
@@ -249,13 +253,22 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   headerRow: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },

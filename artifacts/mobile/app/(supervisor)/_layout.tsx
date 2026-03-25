@@ -35,6 +35,7 @@ export default function SupervisorLayout() {
           ) : null,
       }}
     >
+      {/* ── Visible tabs ── */}
       <Tabs.Screen
         name="index"
         options={{
@@ -71,6 +72,12 @@ export default function SupervisorLayout() {
             ),
         }}
       />
+
+      {/* ── Hidden screens – suppress auto-discovered tab icons ── */}
+      <Tabs.Screen name="report" options={{ href: null }} />
+      <Tabs.Screen name="users" options={{ href: null }} />
+      <Tabs.Screen name="settings/device-pairing" options={{ href: null }} />
+      <Tabs.Screen name="settings/equipment" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { customFetch } from "@workspace/api-client-react";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -216,6 +216,9 @@ export default function UsersScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Feather name="chevron-left" size={26} color={Colors.primary} />
+        </TouchableOpacity>
         <Text style={styles.title}>User Management</Text>
         <TouchableOpacity style={styles.addButton} onPress={openCreate}>
           <Feather name="user-plus" size={18} color={Colors.surface} />
@@ -502,15 +505,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "700",
     color: Colors.text,
     letterSpacing: -0.5,
+    flex: 1,
+    textAlign: "center",
   },
   addButton: {
     flexDirection: "row",
