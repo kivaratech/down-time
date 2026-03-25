@@ -97,12 +97,12 @@ export default function SupervisorIssuesScreen() {
     ? (issues ?? [])
     : (issues ?? []).filter((i) => i.area === areaFilter);
 
-  // Sort resolved issues by age (oldest first)
+  // Sort resolved issues by age (oldest last)
   if (statusFilter === "resolved") {
     filteredIssues = [...filteredIssues].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
-      return dateA - dateB; // Oldest first
+      return dateB - dateA; // Oldest last
     });
   }
 
