@@ -71,14 +71,6 @@ export default function SupervisorLayout() {
             ),
         }}
       />
-      <Tabs.Screen
-        name="users"
-        options={{ href: null }}
-      />
-      <Tabs.Screen
-        name="report"
-        options={{ href: null }}
-      />
     </Tabs>
   );
 }
