@@ -9,9 +9,7 @@ import {
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -23,7 +21,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "@/contexts/auth-context";
 import Colors from "@/constants/colors";
 import IssueCard from "@/components/IssueCard";
 
@@ -72,7 +69,6 @@ type ActiveDropdown = "area" | "category" | "priority" | "restaurant" | "aging" 
 
 export default function SupervisorIssuesScreen() {
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [areaFilter, setAreaFilter] = useState<AreaFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
@@ -81,8 +77,6 @@ export default function SupervisorIssuesScreen() {
   const [agingFilter, setAgingFilter] = useState<number | null>(null);
   const [assignedToFilter, setAssignedToFilter] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   const { data: restaurants } = useListRestaurants();
 
@@ -128,16 +122,6 @@ export default function SupervisorIssuesScreen() {
     setActiveDropdown(null);
   }
 
-  const doLogout = async () => {
-    setLoggingOut(true);
-    try {
-      await logout();
-    } catch {
-      Alert.alert("Error", "Failed to log out.");
-      setLoggingOut(false);
-    }
-  };
-
   const selectedRestaurant = restaurants?.find((r) => r.id === restaurantFilter);
   const selectedAging = AGING_OPTIONS.find((a) => a.key === agingFilter);
 
@@ -147,21 +131,12 @@ export default function SupervisorIssuesScreen() {
       <View style={[styles.header, { paddingTop: topPadding + 20 }]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>All Issues</Text>
-          <View style={styles.headerActions}>
-            {activeFilterCount > 0 && (
-              <TouchableOpacity style={styles.clearBtn} onPress={clearAllFilters}>
-                <Feather name="x" size={12} color={Colors.primary} />
-                <Text style={styles.clearBtnText}>Clear filters</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.logoutBtn}
-              onPress={() => setShowLogoutConfirm(true)}
-              disabled={loggingOut}
-            >
-              <Feather name="log-out" size={18} color={Colors.accent} />
+          {activeFilterCount > 0 && (
+            <TouchableOpacity style={styles.clearBtn} onPress={clearAllFilters}>
+              <Feather name="x" size={12} color={Colors.primary} />
+              <Text style={styles.clearBtnText}>Clear filters</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
 
         {/* Status pills */}
@@ -381,44 +356,6 @@ export default function SupervisorIssuesScreen() {
           ) : null
         }
       />
-
-      {/* Logout Confirmation Modal */}
-      <Modal
-        visible={showLogoutConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLogoutConfirm(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>Log Out</Text>
-            <Text style={styles.confirmBody}>Sign out of your account?</Text>
-            <View style={styles.confirmActions}>
-              <TouchableOpacity
-                style={styles.confirmCancel}
-                onPress={() => setShowLogoutConfirm(false)}
-                disabled={loggingOut}
-              >
-                <Text style={styles.confirmCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmConfirm, styles.confirmDanger]}
-                onPress={() => {
-                  setShowLogoutConfirm(false);
-                  doLogout();
-                }}
-                disabled={loggingOut}
-              >
-                {loggingOut ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.confirmConfirmText}>Log Out</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -619,78 +556,5 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     lineHeight: 22,
-  },
-  // Header actions
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  logoutBtn: {
-    padding: 6,
-  },
-  // Logout confirmation modal
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  confirmBox: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    maxWidth: 360,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  confirmTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: Colors.text,
-    marginBottom: 10,
-  },
-  confirmBody: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  confirmActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  confirmCancel: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  confirmCancelText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textSecondary,
-  },
-  confirmConfirm: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmDanger: {
-    backgroundColor: Colors.accent,
-  },
-  confirmConfirmText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
   },
 });

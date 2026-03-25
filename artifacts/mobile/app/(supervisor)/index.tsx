@@ -10,9 +10,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -102,8 +100,6 @@ function RestaurantStatCard({ restaurant, issues }: { restaurant: Restaurant; is
 export default function SupervisorDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { supervisor, logout } = useAuth();
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   const { data: restaurants, isLoading: restaurantsLoading } = useQuery({
     queryKey: ["restaurants"],
@@ -121,37 +117,26 @@ export default function SupervisorDashboardScreen() {
 
   const isLoading = restaurantsLoading || issuesLoading;
 
-  const doLogout = async () => {
-    setLoggingOut(true);
-    try {
-      await logout();
-    } catch {
-      Alert.alert("Error", "Failed to log out.");
-      setLoggingOut(false);
-    }
-  };
-
   const totalOpen = allIssues?.filter((i) => i.status === "open").length ?? 0;
   const totalUrgent = allIssues?.filter((i) => i.priority === "urgent").length ?? 0;
   const totalInProgress = allIssues?.filter((i) => i.status === "in_progress").length ?? 0;
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: topPadding + 20, paddingBottom: insets.bottom + 100 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
-            tintColor={Colors.primary}
-          />
-        }
-      >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: topPadding + 20, paddingBottom: insets.bottom + 100 },
+      ]}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={refetch}
+          tintColor={Colors.primary}
+        />
+      }
+    >
       {/* Supervisor Header */}
       <View style={styles.pageHeader}>
         <View>
@@ -159,8 +144,11 @@ export default function SupervisorDashboardScreen() {
           <Text style={styles.supervisorName}>{supervisor?.name}</Text>
         </View>
         <TouchableOpacity
-          onPress={() => setShowLogoutConfirm(true)}
-          disabled={loggingOut}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            await logout();
+            router.replace("/login");
+          }}
           style={styles.logoutBtn}
         >
           <Feather name="log-out" size={20} color={Colors.accent} />
@@ -202,46 +190,7 @@ export default function SupervisorDashboardScreen() {
           />
         );
       })}
-      </ScrollView>
-
-      {/* Logout Confirmation Modal */}
-      <Modal
-        visible={showLogoutConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLogoutConfirm(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>Log Out</Text>
-            <Text style={styles.confirmBody}>Sign out of your account?</Text>
-            <View style={styles.confirmActions}>
-              <TouchableOpacity
-                style={styles.confirmCancel}
-                onPress={() => setShowLogoutConfirm(false)}
-                disabled={loggingOut}
-              >
-                <Text style={styles.confirmCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmConfirm, styles.confirmDanger]}
-                onPress={() => {
-                  setShowLogoutConfirm(false);
-                  doLogout();
-                }}
-                disabled={loggingOut}
-              >
-                {loggingOut ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.confirmConfirmText}>Log Out</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -249,9 +198,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  scrollContainer: {
-    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -400,69 +346,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textTertiary,
     fontFamily: "Inter_400Regular",
-  },
-  // Logout confirmation modal
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  confirmBox: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    maxWidth: 360,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  confirmTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: Colors.text,
-    marginBottom: 10,
-  },
-  confirmBody: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  confirmActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  confirmCancel: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  confirmCancelText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textSecondary,
-  },
-  confirmConfirm: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmDanger: {
-    backgroundColor: Colors.accent,
-  },
-  confirmConfirmText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
   },
 });
