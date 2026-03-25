@@ -27,4 +27,5 @@ export interface Issue {
   updatedAt: Date;
   resolvedAt?: Date | null;
   commentCount: number;
+  imageUrl?: string | null;
 }

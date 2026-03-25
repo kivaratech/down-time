@@ -43,3 +43,5 @@ export * from "./supervisorLoginResponse";
 export * from "./updateIssueRequest";
 export * from "./updateIssueRequestPriority";
 export * from "./updateIssueRequestStatus";
+export * from "./uploadUrlRequest";
+export * from "./uploadUrlResponse";

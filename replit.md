@@ -44,7 +44,8 @@ artifacts-monorepo/
 - **Admin user management**: Admin can create, edit, deactivate/reactivate, and reset passwords for supervisor accounts
 - **Supervisor push notifications**: Expo push notifications sent when new issues are created
 - **Restaurant home**: Issues list with status filters (Open / In Progress / Waiting / Resolved / All)
-- **Report issue flow**: Multi-step: Area → Equipment → Sub-item → Description → Submit
+- **Report issue flow**: Multi-step: Area → Equipment → Sub-item → Description (+ optional photo) → Submit
+- **Photo upload**: Restaurant devices can attach a photo to an issue using the camera or image library; images are stored in GCS object storage and displayed as thumbnails in issue cards and the detail view
 - **Issue detail**: Status update, priority (supervisor only), comments
 - **Supervisor dashboard**: Per-restaurant stats + issue summaries
 - **Supervisor issues**: Filterable list across all restaurants with area filter

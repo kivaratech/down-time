@@ -15,11 +15,10 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * @summary Restaurant account login
+ * @summary Restaurant PIN login
  */
 export const RestaurantLoginBody = zod.object({
-  username: zod.string(),
-  password: zod.string(),
+  pin: zod.string(),
 });
 
 export const RestaurantLoginResponse = zod.object({
@@ -133,6 +132,7 @@ export const ListRestaurantIssuesResponseItem = zod.object({
   updatedAt: zod.date(),
   resolvedAt: zod.date().nullish(),
   commentCount: zod.number(),
+  imageUrl: zod.string().nullish(),
 });
 export const ListRestaurantIssuesResponse = zod.array(
   ListRestaurantIssuesResponseItem,
@@ -169,6 +169,7 @@ export const ListIssuesResponseItem = zod.object({
   updatedAt: zod.date(),
   resolvedAt: zod.date().nullish(),
   commentCount: zod.number(),
+  imageUrl: zod.string().nullish(),
 });
 export const ListIssuesResponse = zod.array(ListIssuesResponseItem);
 
@@ -183,6 +184,7 @@ export const CreateIssueBody = zod.object({
   customLabel: zod.string().nullish(),
   description: zod.string(),
   assignedTo: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
 });
 
 /**
@@ -210,6 +212,7 @@ export const GetIssueResponse = zod
     updatedAt: zod.date(),
     resolvedAt: zod.date().nullish(),
     commentCount: zod.number(),
+    imageUrl: zod.string().nullish(),
   })
   .and(
     zod.object({
@@ -256,6 +259,7 @@ export const UpdateIssueResponse = zod.object({
   updatedAt: zod.date(),
   resolvedAt: zod.date().nullish(),
   commentCount: zod.number(),
+  imageUrl: zod.string().nullish(),
 });
 
 /**
@@ -293,4 +297,26 @@ export const GetEquipmentResponse = zod.object({
       ),
     }),
   ),
+});
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string().min(1),
+  size: zod.number().min(1),
+  contentType: zod.string().min(1),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
+});
+
+/**
+ * @summary Serve an uploaded object
+ */
+export const GetStorageObjectParams = zod.object({
+  objectPath: zod.coerce.string(),
 });

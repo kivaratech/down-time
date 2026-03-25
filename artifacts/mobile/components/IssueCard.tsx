@@ -3,8 +3,10 @@ import type { Issue } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 function getAgeLabel(createdAt: string): string {
   const created = new Date(createdAt);
@@ -108,6 +110,14 @@ export default function IssueCard({ issue, showRestaurant }: Props) {
         {issue.description}
       </Text>
 
+      {issue.imageUrl && (
+        <Image
+          source={{ uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}` }}
+          style={styles.thumbnail}
+          resizeMode="cover"
+        />
+      )}
+
       <View style={styles.cardFooter}>
         <Text style={styles.age}>{getAgeLabel(issue.createdAt)}</Text>
         <View style={styles.footerRight}>
@@ -208,7 +218,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  thumbnail: {
+    width: "100%",
+    height: 160,
+    borderRadius: 10,
+    marginBottom: 10,
   },
   cardFooter: {
     flexDirection: "row",

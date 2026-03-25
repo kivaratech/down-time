@@ -4,13 +4,16 @@ import {
   useGetEquipment,
   getListRestaurantIssuesQueryKey,
   getGetEquipmentQueryKey,
+  requestUploadUrl,
 } from "@workspace/api-client-react";
 import type { EquipmentArea, EquipmentItem } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -54,6 +57,9 @@ export default function ReportIssueScreen() {
   const [assignedTo, setAssignedTo] = useState("");
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoSize, setPhotoSize] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   const createIssueMutation = useCreateIssue({
     mutation: {
@@ -158,12 +164,81 @@ export default function ReportIssueScreen() {
     setStep("description");
   }
 
-  function handleSubmit() {
+  async function handleTakePhoto() {
+    await Haptics.selectionAsync();
+    if (Platform.OS === "web") {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setPhotoUri(asset.uri);
+        setPhotoSize(asset.fileSize ?? 100000);
+      }
+      return;
+    }
+
+    const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (cameraResult.status === "granted") {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setPhotoUri(asset.uri);
+        setPhotoSize(asset.fileSize ?? 100000);
+      }
+    } else {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setPhotoUri(asset.uri);
+        setPhotoSize(asset.fileSize ?? 100000);
+      }
+    }
+  }
+
+  async function handleSubmit() {
     if (!description.trim()) {
       setError("Please add a brief description.");
       return;
     }
     setError("");
+
+    let imageObjectPath: string | undefined;
+
+    if (photoUri) {
+      setIsUploading(true);
+      try {
+        const uploadInfo = await requestUploadUrl({
+          name: "issue-photo.jpg",
+          size: photoSize || 100000,
+          contentType: "image/jpeg",
+        });
+        const fileResponse = await fetch(photoUri);
+        const blob = await fileResponse.blob();
+        await fetch(uploadInfo.uploadURL, {
+          method: "PUT",
+          body: blob,
+          headers: { "Content-Type": "image/jpeg" },
+        });
+        const raw = uploadInfo.objectPath;
+        imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
+      } catch (e) {
+        console.warn("Image upload failed, continuing without image:", e);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
     createIssueMutation.mutate({
       data: {
         restaurantId: restaurant!.id,
@@ -172,6 +247,7 @@ export default function ReportIssueScreen() {
         subItem: selectedSubItem ?? undefined,
         description: description.trim(),
         assignedTo: assignedTo.trim() || undefined,
+        imageUrl: imageObjectPath,
       },
     });
   }
@@ -199,6 +275,8 @@ export default function ReportIssueScreen() {
                 setSelectedSubItem(null);
                 setDescription("");
                 setAssignedTo("");
+                setPhotoUri(null);
+                setPhotoSize(0);
                 setSubmitted(false);
               }}
               activeOpacity={0.8}
@@ -218,6 +296,8 @@ export default function ReportIssueScreen() {
       </View>
     );
   }
+
+  const isBusy = isUploading || createIssueMutation.isPending;
 
   return (
     <KeyboardAvoidingView
@@ -373,6 +453,40 @@ export default function ReportIssueScreen() {
               <Text style={styles.charCount}>{description.length}/500</Text>
             </View>
 
+            {/* Photo Capture */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Photo (optional)</Text>
+              {photoUri ? (
+                <View style={styles.photoPreviewContainer}>
+                  <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                  <TouchableOpacity
+                    style={styles.removePhotoBtn}
+                    onPress={() => { setPhotoUri(null); setPhotoSize(0); }}
+                  >
+                    <Feather name="x-circle" size={22} color={Colors.accent} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.retakeBtn}
+                    onPress={handleTakePhoto}
+                  >
+                    <Feather name="refresh-cw" size={14} color={Colors.textSecondary} />
+                    <Text style={styles.retakeBtnText}>Retake</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.photoBtn}
+                  onPress={handleTakePhoto}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="camera" size={20} color={Colors.primary} />
+                  <Text style={styles.photoBtnText}>
+                    {Platform.OS === "web" ? "Attach Photo" : "Take Photo"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Assign to (optional)</Text>
               <View style={styles.assignInput}>
@@ -391,13 +505,18 @@ export default function ReportIssueScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.submitBtn, (!description.trim() || createIssueMutation.isPending) && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, (!description.trim() || isBusy) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
-              disabled={!description.trim() || createIssueMutation.isPending}
+              disabled={!description.trim() || isBusy}
               activeOpacity={0.8}
             >
-              {createIssueMutation.isPending ? (
-                <ActivityIndicator color="#FFFFFF" />
+              {isBusy ? (
+                <View style={styles.submitBtnInner}>
+                  <ActivityIndicator color="#FFFFFF" />
+                  <Text style={styles.submitBtnText}>
+                    {isUploading ? "Uploading photo..." : "Submitting..."}
+                  </Text>
+                </View>
               ) : (
                 <>
                   <Feather name="send" size={18} color="#FFFFFF" />
@@ -598,6 +717,54 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlign: "right",
   },
+  photoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+    gap: 10,
+  },
+  photoBtnText: {
+    fontSize: 15,
+    color: Colors.primary,
+    fontFamily: "Inter_500Medium",
+  },
+  photoPreviewContainer: {
+    position: "relative",
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: Colors.surface,
+  },
+  photoPreview: {
+    width: "100%",
+    height: 200,
+    resizeMode: "cover",
+  },
+  removePhotoBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+  },
+  retakeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: Colors.surface,
+  },
+  retakeBtnText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+  },
   assignInput: {
     flexDirection: "row",
     alignItems: "center",
@@ -634,6 +801,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4,
+  },
+  submitBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   submitBtnDisabled: {
     opacity: 0.5,

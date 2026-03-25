@@ -42,6 +42,7 @@ export const issuesTable = pgTable("issues", {
   status: statusEnum("status").notNull().default("open"),
   assignedTo: text("assigned_to"),
   priority: priorityEnum("priority"),
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   resolvedAt: timestamp("resolved_at"),

@@ -15,4 +15,5 @@ export interface CreateIssueRequest {
   customLabel?: string | null;
   description: string;
   assignedTo?: string | null;
+  imageUrl?: string | null;
 }

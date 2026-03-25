@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -25,11 +26,15 @@ import {
   View,
   Modal,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
+
 import { useAuth } from "@/context/AuthContext";
+
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 type IssueStatus = UpdateIssueRequestStatus;
 type IssuePriority = UpdateIssueRequestPriority;
@@ -232,6 +237,14 @@ export default function IssueDetailScreen() {
           </View>
 
           <Text style={styles.description}>{issue.description}</Text>
+
+          {issue.imageUrl && (
+            <Image
+              source={{ uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}` }}
+              style={styles.issueImage}
+              resizeMode="cover"
+            />
+          )}
 
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
@@ -554,6 +567,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: "Inter_400Regular",
     lineHeight: 24,
+    marginBottom: 12,
+  },
+  issueImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: 12,
     marginBottom: 16,
   },
   metaGrid: {

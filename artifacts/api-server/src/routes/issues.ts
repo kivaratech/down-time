@@ -46,6 +46,7 @@ function buildIssueQuery() {
       status: issuesTable.status,
       assignedTo: issuesTable.assignedTo,
       priority: issuesTable.priority,
+      imageUrl: issuesTable.imageUrl,
       createdAt: issuesTable.createdAt,
       updatedAt: issuesTable.updatedAt,
       resolvedAt: issuesTable.resolvedAt,
@@ -162,7 +163,7 @@ router.post("/issues", async (req, res) => {
     return;
   }
 
-  const { restaurantId, area, equipmentType, subItem, customLabel, description, assignedTo } = body.data;
+  const { restaurantId, area, equipmentType, subItem, customLabel, description, assignedTo, imageUrl } = body.data;
 
   if (restaurant && restaurant.id !== restaurantId) {
     res.status(403).json({ error: "Access denied: cannot create issues for another restaurant" });
@@ -183,6 +184,7 @@ router.post("/issues", async (req, res) => {
       description,
       status: "open",
       assignedTo: assignedTo ?? null,
+      imageUrl: imageUrl ?? null,
     })
     .returning();
 

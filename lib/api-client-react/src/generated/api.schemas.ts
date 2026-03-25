@@ -18,8 +18,7 @@ export interface SuccessResponse {
 }
 
 export interface RestaurantLoginRequest {
-  username: string;
-  password: string;
+  pin: string;
 }
 
 export interface Restaurant {
@@ -116,6 +115,7 @@ export interface Issue {
   updatedAt: string;
   resolvedAt?: string | null;
   commentCount: number;
+  imageUrl?: string | null;
 }
 
 export interface Comment {
@@ -148,6 +148,7 @@ export interface CreateIssueRequest {
   customLabel?: string | null;
   description: string;
   assignedTo?: string | null;
+  imageUrl?: string | null;
 }
 
 export type UpdateIssueRequestStatus =
@@ -214,6 +215,20 @@ export interface EquipmentArea {
 
 export interface EquipmentCatalog {
   areas: EquipmentArea[];
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
 }
 
 export type ListRestaurantIssuesParams = {
