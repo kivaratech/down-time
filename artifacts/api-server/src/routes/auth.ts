@@ -36,6 +36,10 @@ router.post("/auth/supervisor/login", async (req, res) => {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
+  if (!supervisor.isActive) {
+    res.status(403).json({ error: "Account is deactivated. Contact your administrator." });
+    return;
+  }
   const token = generateToken();
   await db.insert(supervisorSessionsTable).values({ token, supervisorId: supervisor.id });
   res.json({

@@ -1,0 +1,754 @@
+import { Feather } from "@expo/vector-icons";
+import { customFetch } from "@workspace/api-client-react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import Colors from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
+
+type UserRow = {
+  id: number;
+  username: string;
+  name: string;
+  email: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+};
+
+type FormState = {
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  role: "supervisor" | "admin";
+};
+
+const emptyForm = (): FormState => ({
+  username: "",
+  name: "",
+  email: "",
+  password: "",
+  role: "supervisor",
+});
+
+export default function UsersScreen() {
+  const insets = useSafeAreaInsets();
+  const { supervisor } = useAuth();
+  const isAdmin = supervisor?.role === "admin";
+
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [formVisible, setFormVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm());
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await customFetch("/api/admin/users");
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isAdmin) fetchUsers();
+    }, [isAdmin, fetchUsers])
+  );
+
+  function openCreate() {
+    setEditingUser(null);
+    setForm(emptyForm());
+    setFormError("");
+    setFormVisible(true);
+  }
+
+  function openEdit(user: UserRow) {
+    setEditingUser(user);
+    setForm({
+      username: user.username,
+      name: user.name,
+      email: user.email ?? "",
+      password: "",
+      role: user.role as "supervisor" | "admin",
+    });
+    setFormError("");
+    setFormVisible(true);
+  }
+
+  async function saveUser() {
+    if (!form.username.trim() || !form.name.trim()) {
+      setFormError("Username and name are required.");
+      return;
+    }
+    if (!editingUser && form.password.length < 6) {
+      setFormError("Password must be at least 6 characters.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      let res: Response;
+      if (editingUser) {
+        const body: Record<string, any> = {
+          username: form.username.trim(),
+          name: form.name.trim(),
+          role: form.role,
+        };
+        if (form.email.trim()) body.email = form.email.trim();
+        else body.email = null;
+        res = await customFetch(`/api/admin/users/${editingUser.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } else {
+        const body: Record<string, any> = {
+          username: form.username.trim(),
+          name: form.name.trim(),
+          password: form.password,
+          role: form.role,
+        };
+        if (form.email.trim()) body.email = form.email.trim();
+        res = await customFetch("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
+      if (res.ok) {
+        setFormVisible(false);
+        fetchUsers();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setFormError(err.error ?? "Something went wrong.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function confirmToggleActive(user: UserRow) {
+    const action = user.isActive ? "deactivate" : "reactivate";
+    Alert.alert(
+      `${user.isActive ? "Deactivate" : "Reactivate"} Account`,
+      `Are you sure you want to ${action} ${user.name}'s account?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: user.isActive ? "Deactivate" : "Reactivate",
+          style: user.isActive ? "destructive" : "default",
+          onPress: () => toggleActive(user),
+        },
+      ]
+    );
+  }
+
+  async function toggleActive(user: UserRow) {
+    const endpoint = user.isActive
+      ? `/api/admin/users/${user.id}/deactivate`
+      : `/api/admin/users/${user.id}/activate`;
+    const res = await customFetch(endpoint, { method: "POST" });
+    if (res.ok) {
+      fetchUsers();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      Alert.alert("Error", err.error ?? "Something went wrong.");
+    }
+  }
+
+  function openResetPassword(user: UserRow) {
+    setResetTargetUser(user);
+    setNewPassword("");
+    setResetModalVisible(true);
+  }
+
+  async function doResetPassword() {
+    if (newPassword.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters.");
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await customFetch(
+        `/api/admin/users/${resetTargetUser!.id}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword }),
+        }
+      );
+      if (res.ok) {
+        setResetModalVisible(false);
+        Alert.alert("Success", `Password reset for ${resetTargetUser!.name}.`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Error", err.error ?? "Something went wrong.");
+      }
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  if (!isAdmin) {
+    return (
+      <View style={[styles.centered, { paddingTop: topPadding }]}>
+        <Feather name="lock" size={48} color={Colors.textTertiary} />
+        <Text style={styles.emptyText}>Admin access required</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>User Management</Text>
+        <TouchableOpacity style={styles.addButton} onPress={openCreate}>
+          <Feather name="user-plus" size={18} color={Colors.surface} />
+          <Text style={styles.addButtonText}>Add User</Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={users}
+          keyExtractor={(u) => String(u.id)}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          renderItem={({ item }) => (
+            <UserCard
+              user={item}
+              currentSupervisorId={supervisor?.id ?? -1}
+              onEdit={() => openEdit(item)}
+              onToggleActive={() => confirmToggleActive(item)}
+              onResetPassword={() => openResetPassword(item)}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.centered}>
+              <Text style={styles.emptyText}>No users found.</Text>
+            </View>
+          }
+        />
+      )}
+
+      {/* Create / Edit Modal */}
+      <Modal
+        visible={formVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setFormVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setFormVisible(false)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {editingUser ? "Edit User" : "New User"}
+            </Text>
+            <TouchableOpacity onPress={saveUser} disabled={saving}>
+              {saving ? (
+                <ActivityIndicator color={Colors.primary} />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+            {!!formError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{formError}</Text>
+              </View>
+            )}
+
+            <Text style={styles.fieldLabel}>Full Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={form.name}
+              onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
+              placeholder="e.g. Jordan Smith"
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="words"
+            />
+
+            <Text style={styles.fieldLabel}>Username *</Text>
+            <TextInput
+              style={styles.input}
+              value={form.username}
+              onChangeText={(v) => setForm((f) => ({ ...f, username: v.toLowerCase().replace(/\s/g, "") }))}
+              placeholder="e.g. jsmith"
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <Text style={styles.fieldLabel}>Email (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={form.email}
+              onChangeText={(v) => setForm((f) => ({ ...f, email: v }))}
+              placeholder="e.g. jsmith@example.com"
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoCorrect={false}
+            />
+
+            {!editingUser && (
+              <>
+                <Text style={styles.fieldLabel}>Password *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.password}
+                  onChangeText={(v) => setForm((f) => ({ ...f, password: v }))}
+                  placeholder="Minimum 6 characters"
+                  placeholderTextColor={Colors.textTertiary}
+                  secureTextEntry
+                />
+              </>
+            )}
+
+            <Text style={styles.fieldLabel}>Role</Text>
+            <View style={styles.roleRow}>
+              {(["supervisor", "admin"] as const).map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.roleChip, form.role === r && styles.roleChipActive]}
+                  onPress={() => setForm((f) => ({ ...f, role: r }))}
+                >
+                  <Text style={[styles.roleChipText, form.role === r && styles.roleChipTextActive]}>
+                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        visible={resetModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setResetModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setResetModalVisible(false)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            <TouchableOpacity onPress={doResetPassword} disabled={resetting}>
+              {resetting ? (
+                <ActivityIndicator color={Colors.primary} />
+              ) : (
+                <Text style={styles.saveText}>Reset</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+            <Text style={styles.resetSubtitle}>
+              Set a new password for {resetTargetUser?.name}. Their existing sessions will be signed out.
+            </Text>
+            <Text style={styles.fieldLabel}>New Password</Text>
+            <TextInput
+              style={styles.input}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Minimum 6 characters"
+              placeholderTextColor={Colors.textTertiary}
+              secureTextEntry
+              autoFocus
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+type UserCardProps = {
+  user: UserRow;
+  currentSupervisorId: number;
+  onEdit: () => void;
+  onToggleActive: () => void;
+  onResetPassword: () => void;
+};
+
+function UserCard({ user, currentSupervisorId, onEdit, onToggleActive, onResetPassword }: UserCardProps) {
+  const isSelf = user.id === currentSupervisorId;
+  return (
+    <View style={[styles.card, !user.isActive && styles.cardInactive]}>
+      <View style={styles.cardTop}>
+        <View style={styles.cardInfo}>
+          <View style={styles.cardNameRow}>
+            <Text style={[styles.cardName, !user.isActive && styles.textMuted]}>
+              {user.name}
+            </Text>
+            {isSelf && (
+              <View style={styles.selfBadge}>
+                <Text style={styles.selfBadgeText}>You</Text>
+              </View>
+            )}
+            <View style={[styles.roleBadge, user.role === "admin" && styles.roleBadgeAdmin]}>
+              <Text style={[styles.roleBadgeText, user.role === "admin" && styles.roleBadgeTextAdmin]}>
+                {user.role}
+              </Text>
+            </View>
+            {!user.isActive && (
+              <View style={styles.inactiveBadge}>
+                <Text style={styles.inactiveBadgeText}>Inactive</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.cardUsername, !user.isActive && styles.textMuted]}>
+            @{user.username}
+          </Text>
+          {!!user.email && (
+            <Text style={[styles.cardEmail, !user.isActive && styles.textMuted]}>
+              {user.email}
+            </Text>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.cardActions}>
+        <TouchableOpacity style={styles.actionBtn} onPress={onEdit}>
+          <Feather name="edit-2" size={15} color={Colors.primary} />
+          <Text style={styles.actionBtnText}>Edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={onResetPassword}>
+          <Feather name="key" size={15} color={Colors.textSecondary} />
+          <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Reset Password</Text>
+        </TouchableOpacity>
+
+        {!isSelf && (
+          <TouchableOpacity
+            style={[styles.actionBtn, user.isActive ? styles.actionBtnDanger : styles.actionBtnSuccess]}
+            onPress={onToggleActive}
+          >
+            <Feather
+              name={user.isActive ? "user-x" : "user-check"}
+              size={15}
+              color={user.isActive ? Colors.accent : Colors.success}
+            />
+            <Text
+              style={[styles.actionBtnText, { color: user.isActive ? Colors.accent : Colors.success }]}
+            >
+              {user.isActive ? "Deactivate" : "Reactivate"}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: Colors.text,
+    letterSpacing: -0.5,
+  },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  addButtonText: {
+    color: Colors.surface,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+    paddingTop: 4,
+  },
+  separator: {
+    height: 10,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: Colors.textTertiary,
+    marginTop: 12,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cardInactive: {
+    opacity: 0.65,
+    borderStyle: "dashed",
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  cardInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  cardNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  cardUsername: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  cardEmail: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+  },
+  textMuted: {
+    color: Colors.textTertiary,
+  },
+  selfBadge: {
+    backgroundColor: Colors.primary + "18",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  selfBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  roleBadge: {
+    backgroundColor: Colors.textTertiary + "22",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  roleBadgeSupervisor: {},
+  roleBadgeAdmin: {
+    backgroundColor: Colors.primary + "18",
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    textTransform: "capitalize",
+  },
+  roleBadgeTextAdmin: {
+    color: Colors.primary,
+  },
+  inactiveBadge: {
+    backgroundColor: Colors.accent + "18",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  inactiveBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.accent,
+  },
+  cardActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: 12,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionBtnDanger: {
+    borderColor: Colors.accent + "44",
+    backgroundColor: Colors.accent + "08",
+  },
+  actionBtnSuccess: {
+    borderColor: Colors.success + "44",
+    backgroundColor: Colors.success + "08",
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Colors.primary,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  saveText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  modalBody: {
+    flex: 1,
+    padding: 20,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  input: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  roleRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  roleChip: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  roleChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  roleChipText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: Colors.textSecondary,
+  },
+  roleChipTextActive: {
+    color: Colors.surface,
+    fontWeight: "600",
+  },
+  errorBanner: {
+    backgroundColor: Colors.accent + "18",
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  errorBannerText: {
+    color: Colors.accent,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  resetSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+});

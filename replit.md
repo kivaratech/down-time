@@ -39,8 +39,9 @@ artifacts-monorepo/
 
 ### Features
 
-- **Restaurant login**: Shared iPad access with username/password
-- **Supervisor login**: Individual username/password
+- **Device pairing**: Restaurant tablets pair via admin-generated 6-char code (no credentials stored)
+- **Supervisor login**: Individual username/password with role-based access (admin / supervisor)
+- **Admin user management**: Admin can create, edit, deactivate/reactivate, and reset passwords for supervisor accounts
 - **Supervisor push notifications**: Expo push notifications sent when new issues are created
 - **Restaurant home**: Issues list with status filters (Open / In Progress / Waiting / Resolved / All)
 - **Report issue flow**: Multi-step: Area → Equipment → Sub-item → Description → Submit
@@ -60,17 +61,13 @@ The equipment catalog (`lib/api-server/src/lib/equipment.ts`) is a **global in-m
 
 ### Seed Data
 
-| Restaurant | PIN | Location |
-|---|---|---|
-| Maple Street | 1234 | Maple St & 5th Ave |
-| Downtown West | 5678 | 100 Main St |
-| Airport Rd | 4321 | 2200 Airport Road |
-| Riverside | 9876 | 300 River Blvd |
+Restaurants (no credentials — paired via admin-generated codes):
+- Zeeb (Zeeb Rd), Baker (Baker Rd), Leslie (Leslie Ave), Stockbridge (Stockbridge Rd)
 
-| Supervisor | Username | Password |
-|---|---|---|
-| Alex Johnson | admin | admin123 |
-| Maria Garcia | supervisor | pass123 |
+| Supervisor | Username | Password | Role |
+|---|---|---|---|
+| Alex Johnson | admin | admin123 | admin |
+| Maria Garcia | supervisor | pass123 | supervisor |
 
 Supervisor passwords are stored as PBKDF2-SHA512 with a random 16-byte salt in `salt:hash` format (100,000 iterations). The seed script and API auth lib use identical hashing logic.
 
@@ -106,11 +103,20 @@ Flat color object in `constants/colors.ts`:
 
 | Method | Path | Description |
 |---|---|---|
-| POST | /api/auth/restaurant/login | PIN login → token + restaurant |
-| POST | /api/auth/supervisor/login | Cred login → token + supervisor |
+| POST | /api/auth/supervisor/login | Cred login → token + supervisor (checks isActive) |
 | POST | /api/auth/supervisor/logout | Clear supervisor session |
 | POST | /api/auth/supervisor/push-token | Register/update supervisor Expo push token |
 | GET | /api/auth/me | Current user info |
+| POST | /api/auth/admin/pairing-code | Admin generates 6-char device pairing code |
+| POST | /api/auth/device/pair | Tablet pairs via code → long-lived session |
+| GET | /api/auth/admin/device-sessions | List active device sessions (admin) |
+| DELETE | /api/auth/admin/device-sessions/:id | Revoke a device session (admin) |
+| GET | /api/admin/users | List all supervisors (admin) |
+| POST | /api/admin/users | Create supervisor account (admin) |
+| PATCH | /api/admin/users/:id | Update name/email/username/role (admin) |
+| POST | /api/admin/users/:id/deactivate | Deactivate account + revoke sessions (admin) |
+| POST | /api/admin/users/:id/activate | Reactivate account (admin) |
+| POST | /api/admin/users/:id/reset-password | Reset password + revoke sessions (admin) |
 | GET | /api/restaurants | List all (supervisor) |
 | GET | /api/restaurants/:id/issues | Restaurant issues with status filter |
 | GET | /api/issues | All issues (supervisor) with filters |
