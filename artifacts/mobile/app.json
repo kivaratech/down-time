@@ -21,7 +21,9 @@
       "package": "com.downtime.app"
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       [
