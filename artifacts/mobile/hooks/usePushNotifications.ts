@@ -7,7 +7,7 @@ const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 async function sendTokenToServer(pushToken: string, authToken: string): Promise<void> {
   try {
-    await fetch(`${BASE_URL}/api/auth/supervisor/push-token`, {
+    const res = await fetch(`${BASE_URL}/api/auth/supervisor/push-token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -15,9 +15,22 @@ async function sendTokenToServer(pushToken: string, authToken: string): Promise<
       },
       body: JSON.stringify({ token: pushToken }),
     });
+    if (!res.ok) {
+      console.warn("[notifications] Server rejected push token:", res.status);
+    } else {
+      console.log("[notifications] Push token saved to server ✓");
+    }
   } catch (err) {
     console.warn("[notifications] Failed to send push token to server:", err);
   }
+}
+
+function getProjectId(): string | undefined {
+  return (
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    (Constants as Record<string, unknown>).easConfig?.projectId as string | undefined ??
+    process.env.EXPO_PUBLIC_EAS_PROJECT_ID
+  );
 }
 
 export async function registerSupervisorPushToken(authToken: string): Promise<void> {
@@ -28,12 +41,17 @@ export async function registerSupervisorPushToken(authToken: string): Promise<vo
     return;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  let finalStatus: string;
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+  } catch (err) {
+    console.warn("[notifications] Permission check failed:", err);
+    return;
   }
 
   if (finalStatus !== "granted") {
@@ -41,20 +59,30 @@ export async function registerSupervisorPushToken(authToken: string): Promise<vo
     return;
   }
 
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ??
-    process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
-
+  const projectId = getProjectId();
   if (!projectId) {
-    console.warn("[notifications] No EAS project ID set — cannot get push token. Set EXPO_PUBLIC_EAS_PROJECT_ID or configure eas.projectId in app.json.");
-    return;
+    console.warn(
+      "[notifications] No EAS project ID found. " +
+      "Set EXPO_PUBLIC_EAS_PROJECT_ID in your environment or add " +
+      "extra.eas.projectId to app.json. " +
+      "Push notifications require a development build + EAS project."
+    );
   }
 
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    console.log("[notifications] Got push token:", tokenData.data.slice(0, 30) + "…");
     await sendTokenToServer(tokenData.data, authToken);
   } catch (err) {
     console.warn("[notifications] Failed to get Expo push token:", err);
+    console.warn(
+      "[notifications] To enable push notifications: " +
+      "1) Use a development build (not Expo Go on Android/SDK53+), " +
+      "2) Run `eas build:configure` to register an EAS project, " +
+      "3) Set EXPO_PUBLIC_EAS_PROJECT_ID env var."
+    );
   }
 }
 
@@ -64,7 +92,7 @@ export function configurePushNotifications(): void {
       name: "Default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#2563EB",
+      lightColor: "#0F3460",
     });
   }
 

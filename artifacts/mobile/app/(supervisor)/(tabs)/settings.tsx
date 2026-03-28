@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -109,6 +110,10 @@ export default function SettingsScreen() {
             <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
           </TouchableOpacity>
         ))}
+
+        <Text style={styles.versionText}>
+          Version {Constants.expoConfig?.version ?? "1.0.0"}
+        </Text>
       </ScrollView>
 
       {/* Logout Confirmation Modal */}
@@ -277,5 +282,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: "#FFFFFF",
+  },
+  versionText: {
+    textAlign: "center",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+    marginTop: 12,
   },
 });
