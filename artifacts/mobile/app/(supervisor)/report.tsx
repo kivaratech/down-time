@@ -91,7 +91,7 @@ export default function SupervisorReportScreen() {
   const equipmentItems = currentArea?.items ?? [];
   const subItems = selectedEquipment?.subItems ?? [];
 
-  const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
+  const topPadding = Platform.OS === "web" ? 32 : insets.top;
 
   const STEPS: Step[] = subItems.length > 0
     ? ["restaurant", "area", "equipment", "subitem", "description"]

@@ -107,7 +107,7 @@ export default function SupervisorIssuesScreen() {
   }
 
   const topPadding = Platform.OS === "web"
-    ? insets.top + 67
+    ? 32
     : insets.top;
 
   const activeFilterCount = [

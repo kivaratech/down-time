@@ -81,7 +81,7 @@ export default function UsersScreen() {
   const [storeSelection, setStoreSelection] = useState<Set<number>>(new Set());
   const [storeSaving, setStoreSaving] = useState(false);
 
-  const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
+  const topPadding = Platform.OS === "web" ? 32 : insets.top;
 
   const fetchData = useCallback(async () => {
     setLoading(true);

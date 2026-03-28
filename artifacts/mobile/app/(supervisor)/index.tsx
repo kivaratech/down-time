@@ -127,7 +127,7 @@ export default function SupervisorDashboardScreen() {
   });
 
   const topPadding = Platform.OS === "web"
-    ? insets.top + 67
+    ? 32
     : insets.top;
 
   const isLoading = restaurantsLoading || issuesLoading;
@@ -158,15 +158,17 @@ export default function SupervisorDashboardScreen() {
           <Text style={styles.greeting}>Dashboard</Text>
           <Text style={styles.supervisorName}>{supervisor?.name}</Text>
         </View>
-        <TouchableOpacity
-          onPress={async () => {
-            await Haptics.selectionAsync();
-            setShowLogoutConfirm(true);
-          }}
-          style={styles.logoutBtn}
-        >
-          <Feather name="log-out" size={20} color={Colors.accent} />
-        </TouchableOpacity>
+        {Platform.OS !== "web" && (
+          <TouchableOpacity
+            onPress={async () => {
+              await Haptics.selectionAsync();
+              setShowLogoutConfirm(true);
+            }}
+            style={styles.logoutBtn}
+          >
+            <Feather name="log-out" size={20} color={Colors.accent} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Summary Stats */}

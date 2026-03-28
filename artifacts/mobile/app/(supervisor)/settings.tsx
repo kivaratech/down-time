@@ -59,7 +59,7 @@ export default function SettingsScreen() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const topPadding = Platform.OS === "web" ? insets.top + 67 : insets.top;
+  const topPadding = Platform.OS === "web" ? 32 : insets.top;
 
   const visibleOptions = OPTIONS.filter((opt) => !opt.adminOnly || isAdmin);
 
