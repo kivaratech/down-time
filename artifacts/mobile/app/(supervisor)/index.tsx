@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -126,9 +127,9 @@ export default function SupervisorDashboardScreen() {
     staleTime: 0,
   });
 
-  const topPadding = Platform.OS === "web"
-    ? 32
-    : insets.top;
+  const { useSidebar } = useResponsiveLayout();
+  const topPadding = Platform.OS === "web" ? 32 : insets.top;
+  const bottomPadding = useSidebar ? 24 : insets.bottom + 100;
 
   const isLoading = restaurantsLoading || issuesLoading;
 
@@ -141,7 +142,7 @@ export default function SupervisorDashboardScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: topPadding + 20, paddingBottom: insets.bottom + 100 },
+          { paddingTop: topPadding + 20, paddingBottom: bottomPadding },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={

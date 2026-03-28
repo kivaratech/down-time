@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 import Colors from "@/constants/colors";
 import IssueCard from "@/components/IssueCard";
@@ -106,9 +107,9 @@ export default function SupervisorIssuesScreen() {
     });
   }
 
-  const topPadding = Platform.OS === "web"
-    ? 32
-    : insets.top;
+  const { useSidebar } = useResponsiveLayout();
+  const topPadding = Platform.OS === "web" ? 32 : insets.top;
+  const bottomPadding = useSidebar ? 24 : insets.bottom + 100;
 
   const activeFilterCount = [
     areaFilter !== "all",
@@ -351,7 +352,7 @@ export default function SupervisorIssuesScreen() {
       <FlatList
         data={filteredIssues}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />

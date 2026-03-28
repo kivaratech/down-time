@@ -5,6 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import WebSidebar from "@/components/WebSidebar";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 const TAB_SCREENS = (
   <>
@@ -52,10 +53,10 @@ const TAB_SCREENS = (
 );
 
 export default function SupervisorLayout() {
+  const { useSidebar } = useResponsiveLayout();
   const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
 
-  if (isWeb) {
+  if (useSidebar) {
     return (
       <View style={styles.webShell}>
         <WebSidebar />
