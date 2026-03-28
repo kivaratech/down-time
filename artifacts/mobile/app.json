@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "DownTime",
-    "slug": "mobile",
+    "name": "Down Time",
+    "slug": "downtime",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "downtime",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,11 +14,14 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.downtime.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.downtime.app"
+    },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
