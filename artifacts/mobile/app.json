@@ -18,7 +18,16 @@
       "bundleIdentifier": "com.downtime.app"
     },
     "android": {
-      "package": "com.downtime.app"
+      "package": "com.downtime.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0F3460"
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "output": "single",
@@ -37,7 +46,8 @@
       [
         "expo-notifications",
         {
-          "color": "#2563EB",
+          "icon": "./assets/images/icon.png",
+          "color": "#0F3460",
           "sounds": []
         }
       ]
@@ -45,6 +55,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
