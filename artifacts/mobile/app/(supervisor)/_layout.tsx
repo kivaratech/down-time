@@ -1,6 +1,5 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -13,42 +12,39 @@ const TAB_SCREENS = (
       name="index"
       options={{
         title: "Dashboard",
-        tabBarIcon: ({ color }) =>
-          Platform.OS === "ios" ? (
-            <SymbolView name="square.grid.2x2" tintColor={color} size={24} />
-          ) : (
-            <Feather name="grid" size={22} color={color} />
-          ),
+        tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} />,
       }}
     />
     <Tabs.Screen
       name="issues"
       options={{
         title: "All Issues",
-        tabBarIcon: ({ color }) =>
-          Platform.OS === "ios" ? (
-            <SymbolView name="list.clipboard" tintColor={color} size={24} />
-          ) : (
-            <Feather name="list" size={22} color={color} />
-          ),
+        tabBarIcon: ({ color }) => <Feather name="list" size={22} color={color} />,
       }}
     />
     <Tabs.Screen
       name="settings"
       options={{
         title: "Settings",
-        tabBarIcon: ({ color }) =>
-          Platform.OS === "ios" ? (
-            <SymbolView name="gearshape" tintColor={color} size={24} />
-          ) : (
-            <Feather name="settings" size={22} color={color} />
-          ),
+        tabBarIcon: ({ color }) => <Feather name="settings" size={22} color={color} />,
       }}
     />
-    <Tabs.Screen name="report" options={{ href: null }} />
-    <Tabs.Screen name="users" options={{ href: null }} />
-    <Tabs.Screen name="settings/device-pairing" options={{ href: null }} />
-    <Tabs.Screen name="settings/equipment" options={{ href: null }} />
+    <Tabs.Screen
+      name="report"
+      options={{ href: null, tabBarButton: () => null }}
+    />
+    <Tabs.Screen
+      name="users"
+      options={{ href: null, tabBarButton: () => null }}
+    />
+    <Tabs.Screen
+      name="settings/device-pairing"
+      options={{ href: null, tabBarButton: () => null }}
+    />
+    <Tabs.Screen
+      name="settings/equipment"
+      options={{ href: null, tabBarButton: () => null }}
+    />
   </>
 );
 
