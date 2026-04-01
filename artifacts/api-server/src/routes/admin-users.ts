@@ -194,45 +194,6 @@ router.post("/admin/users/:id/deactivate", async (req, res) => {
   res.json({ success: true });
 });
 
-const ResetPasswordBody = z.object({
-  newPassword: z.string().min(6),
-});
-
-// POST /api/admin/users/:id/reset-password
-router.post("/admin/users/:id/reset-password", async (req, res) => {
-  const admin = await requireAdmin(req, res);
-  if (!admin) return;
-
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid user ID" });
-    return;
-  }
-
-  const body = ResetPasswordBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: "New password must be at least 6 characters" });
-    return;
-  }
-
-  const passwordHash = hashPassword(body.data.newPassword);
-
-  const [updated] = await db
-    .update(supervisorsTable)
-    .set({ passwordHash })
-    .where(eq(supervisorsTable.id, id))
-    .returning({ id: supervisorsTable.id });
-
-  if (!updated) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
-
-  res.json({ success: true });
-});
-
 // GET /api/admin/users/:id/restaurants — get assigned restaurant IDs
 router.get("/admin/users/:id/restaurants", async (req, res) => {
   const admin = await requireAdmin(req, res);

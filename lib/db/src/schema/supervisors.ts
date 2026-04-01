@@ -11,6 +11,8 @@ export const supervisorsTable = pgTable("supervisors", {
   role: text("role").notNull().default("supervisor"),
   isActive: boolean("is_active").notNull().default(true),
   expoPushToken: text("expo_push_token"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -189,6 +189,13 @@ export default function LoginScreen() {
                 <Text style={styles.loginBtnText}>Sign In</Text>
               )}
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.forgotBtn}
+              onPress={() => router.push("/forgot-password")}
+            >
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -378,5 +385,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
+  },
+  forgotBtn: {
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  forgotText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textDecorationLine: "underline",
   },
 });

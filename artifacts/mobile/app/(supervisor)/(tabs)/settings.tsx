@@ -29,6 +29,13 @@ type SettingsOption = {
 
 const OPTIONS: SettingsOption[] = [
   {
+    id: "change-password",
+    icon: "shield",
+    title: "Change Password",
+    subtitle: "Update your account password",
+    route: "/(supervisor)/settings/change-password",
+  },
+  {
     id: "device-pairing",
     icon: "key",
     title: "Device Pairing",
