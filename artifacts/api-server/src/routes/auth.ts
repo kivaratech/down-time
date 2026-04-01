@@ -10,6 +10,7 @@ import {
 import { and, eq, isNull } from "drizzle-orm";
 import {
   generateToken,
+  hashPassword,
   verifyPassword,
   extractToken,
   getRestaurantFromToken,
@@ -223,6 +224,38 @@ router.delete("/auth/admin/device-sessions/:id", async (req, res) => {
     .update(deviceSessionsTable)
     .set({ revokedAt: new Date() })
     .where(eq(deviceSessionsTable.id, id));
+
+  res.json({ success: true });
+});
+
+// POST /api/auth/supervisor/change-password — change own password (any logged-in supervisor/admin)
+router.post("/auth/supervisor/change-password", async (req, res) => {
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || typeof currentPassword !== "string") {
+    res.status(400).json({ error: "Current password is required" });
+    return;
+  }
+  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+    res.status(400).json({ error: "New password must be at least 6 characters" });
+    return;
+  }
+
+  if (!verifyPassword(currentPassword, supervisor.passwordHash)) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  await db
+    .update(supervisorsTable)
+    .set({ passwordHash: hashPassword(newPassword) })
+    .where(eq(supervisorsTable.id, supervisor.id));
 
   res.json({ success: true });
 });
