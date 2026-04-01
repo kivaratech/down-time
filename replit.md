@@ -135,6 +135,16 @@ Flat color object in `constants/colors.ts`:
 - `priority`: urgent / high / normal / null (supervisor-only)
 - Sort: priority desc (urgent first), then createdAt asc (oldest first)
 
+## Email (Password Reset)
+
+Password reset uses Resend (resend.com) for email delivery. The API call is in `artifacts/api-server/src/lib/email.ts`.
+
+- **`RESEND_API_KEY`** environment secret — must be set for real emails to send
+- **`RESEND_FROM`** environment secret (optional) — defaults to `DownTime <onboarding@resend.dev>`
+- If `RESEND_API_KEY` is not set, the reset code is printed to the server console (dev fallback)
+- Resend free tier: 3,000 emails/month; sending to any address requires a verified domain
+- The Replit Resend integration was dismissed by the user — if reconnecting, use the Replit integrations system (search "resend"). Otherwise, set `RESEND_API_KEY` manually as a project secret.
+
 ## TypeScript & Composite Projects
 
 Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
