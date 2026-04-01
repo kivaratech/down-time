@@ -43,6 +43,7 @@ type FormState = {
   name: string;
   email: string;
   password: string;
+  confirmPassword: string;
   role: "supervisor" | "admin";
 };
 
@@ -51,6 +52,7 @@ const emptyForm = (): FormState => ({
   name: "",
   email: "",
   password: "",
+  confirmPassword: "",
   role: "supervisor",
 });
 
@@ -72,6 +74,8 @@ export default function UsersScreen() {
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [resetTargetUser, setResetTargetUser] = useState<UserRow | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [resetError, setResetError] = useState("");
   const [resetting, setResetting] = useState(false);
 
   const [confirmUser, setConfirmUser] = useState<UserRow | null>(null);
@@ -174,6 +178,10 @@ export default function UsersScreen() {
       setFormError("Password must be at least 6 characters.");
       return;
     }
+    if (!editingUser && form.password !== form.confirmPassword) {
+      setFormError("Passwords do not match.");
+      return;
+    }
     setSaving(true);
     setFormError("");
     try {
@@ -234,14 +242,21 @@ export default function UsersScreen() {
   function openResetPassword(user: UserRow) {
     setResetTargetUser(user);
     setNewPassword("");
+    setConfirmNewPassword("");
+    setResetError("");
     setResetModalVisible(true);
   }
 
   async function doResetPassword() {
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters.");
+      setResetError("Password must be at least 6 characters.");
       return;
     }
+    if (newPassword !== confirmNewPassword) {
+      setResetError("Passwords do not match.");
+      return;
+    }
+    setResetError("");
     setResetting(true);
     try {
       await customFetch(
@@ -387,6 +402,15 @@ export default function UsersScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   secureTextEntry
                 />
+                <Text style={styles.fieldLabel}>Confirm Password *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.confirmPassword}
+                  onChangeText={(v) => setForm((f) => ({ ...f, confirmPassword: v }))}
+                  placeholder="Re-enter password"
+                  placeholderTextColor={Colors.textTertiary}
+                  secureTextEntry
+                />
               </View>
             )}
 
@@ -437,6 +461,11 @@ export default function UsersScreen() {
             <Text style={styles.resetSubtitle}>
               Set a new password for {resetTargetUser?.name}. Their existing sessions will be signed out.
             </Text>
+            {!!resetError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{resetError}</Text>
+              </View>
+            )}
             <Text style={styles.fieldLabel}>New Password</Text>
             <TextInput
               style={styles.input}
@@ -446,6 +475,15 @@ export default function UsersScreen() {
               placeholderTextColor={Colors.textTertiary}
               secureTextEntry
               autoFocus
+            />
+            <Text style={styles.fieldLabel}>Confirm New Password</Text>
+            <TextInput
+              style={styles.input}
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              placeholder="Re-enter new password"
+              placeholderTextColor={Colors.textTertiary}
+              secureTextEntry
             />
           </ScrollView>
         </KeyboardAvoidingView>
