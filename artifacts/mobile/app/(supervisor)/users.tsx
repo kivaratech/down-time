@@ -69,6 +69,11 @@ export default function UsersScreen() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+
   const [confirmUser, setConfirmUser] = useState<UserRow | null>(null);
   const [toggling, setToggling] = useState(false);
 
@@ -226,6 +231,35 @@ export default function UsersScreen() {
     }
   }
 
+  function openResetPassword(user: UserRow) {
+    setResetTargetUser(user);
+    setNewPassword("");
+    setResetModalVisible(true);
+  }
+
+  async function doResetPassword() {
+    if (newPassword.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters.");
+      return;
+    }
+    setResetting(true);
+    try {
+      await customFetch(
+        `/api/admin/users/${resetTargetUser!.id}/reset-password`,
+        {
+          method: "POST",
+          body: JSON.stringify({ newPassword }),
+        }
+      );
+      setResetModalVisible(false);
+      Alert.alert("Password Reset", `New password set for ${resetTargetUser!.name}. Their existing sessions have been signed out.`);
+    } catch (err: any) {
+      Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   if (!isAdmin) {
     return (
       <View style={[styles.centered, { paddingTop: topPadding }]}>
@@ -263,6 +297,7 @@ export default function UsersScreen() {
               currentSupervisorId={supervisor?.id ?? -1}
               onEdit={() => openEdit(item)}
               onToggleActive={() => setConfirmUser(item)}
+              onResetPassword={() => openResetPassword(item)}
               onManageStores={() => openManageStores(item)}
             />
           )}
@@ -373,6 +408,49 @@ export default function UsersScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Reset Password Modal */}
+      <Modal
+        visible={resetModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setResetModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setResetModalVisible(false)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            <TouchableOpacity onPress={doResetPassword} disabled={resetting}>
+              {resetting ? (
+                <ActivityIndicator color={Colors.primary} />
+              ) : (
+                <Text style={styles.saveText}>Reset</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+            <Text style={styles.resetSubtitle}>
+              Set a new password for {resetTargetUser?.name}. Their existing sessions will be signed out.
+            </Text>
+            <Text style={styles.fieldLabel}>New Password</Text>
+            <TextInput
+              style={styles.input}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Minimum 6 characters"
+              placeholderTextColor={Colors.textTertiary}
+              secureTextEntry
+              autoFocus
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Delete User Confirmation Modal */}
       <Modal
         visible={!!confirmUser}
@@ -468,6 +546,7 @@ type UserCardProps = {
   currentSupervisorId: number;
   onEdit: () => void;
   onToggleActive: () => void;
+  onResetPassword: () => void;
   onManageStores: () => void;
 };
 
@@ -477,6 +556,7 @@ function UserCard({
   currentSupervisorId,
   onEdit,
   onToggleActive,
+  onResetPassword,
   onManageStores,
 }: UserCardProps) {
   const isSelf = user.id === currentSupervisorId;
@@ -524,6 +604,11 @@ function UserCard({
         <TouchableOpacity style={styles.actionBtn} onPress={onManageStores}>
           <Feather name="map-pin" size={15} color={Colors.primary} />
           <Text style={styles.actionBtnText}>Stores</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={onResetPassword}>
+          <Feather name="key" size={15} color={Colors.textSecondary} />
+          <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Reset Password</Text>
         </TouchableOpacity>
 
         {!isSelf && (
@@ -824,6 +909,13 @@ const styles = StyleSheet.create({
     color: Colors.accent,
     fontSize: 14,
     fontWeight: "500",
+  },
+  resetSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 8,
+    marginTop: 4,
   },
   overlay: {
     flex: 1,

@@ -10,14 +10,12 @@ import {
 import { and, eq, isNull } from "drizzle-orm";
 import {
   generateToken,
-  hashPassword,
   verifyPassword,
   extractToken,
   getRestaurantFromToken,
   getSupervisorFromToken,
 } from "../lib/auth";
 import { SupervisorLoginBody } from "@workspace/api-zod";
-import { sendPasswordResetEmail } from "../lib/email";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -83,134 +81,6 @@ router.post("/auth/supervisor/push-token", async (req, res) => {
     .update(supervisorsTable)
     .set({ expoPushToken: pushToken })
     .where(eq(supervisorsTable.id, supervisor.id));
-
-  res.json({ success: true });
-});
-
-// POST /api/auth/supervisor/change-password — change password while logged in
-router.post("/auth/supervisor/change-password", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
-  const { currentPassword, newPassword } = req.body;
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: "Current and new password are required" });
-    return;
-  }
-  if (typeof newPassword !== "string" || newPassword.length < 6) {
-    res.status(400).json({ error: "New password must be at least 6 characters" });
-    return;
-  }
-
-  if (!verifyPassword(currentPassword, supervisor.passwordHash)) {
-    res.status(401).json({ error: "Current password is incorrect" });
-    return;
-  }
-
-  const passwordHash = hashPassword(newPassword);
-  await db
-    .update(supervisorsTable)
-    .set({ passwordHash })
-    .where(eq(supervisorsTable.id, supervisor.id));
-
-  res.json({ success: true });
-});
-
-// POST /api/auth/forgot-password — request a reset code via email
-router.post("/auth/forgot-password", async (req, res) => {
-  const { email } = req.body;
-
-  // Always respond the same way to avoid email enumeration
-  const genericResponse = { success: true, message: "If an account with that email exists, a reset code has been sent." };
-
-  if (!email || typeof email !== "string" || !email.includes("@")) {
-    res.status(400).json({ error: "A valid email address is required" });
-    return;
-  }
-
-  const [supervisor] = await db
-    .select()
-    .from(supervisorsTable)
-    .where(eq(supervisorsTable.email, email.toLowerCase().trim()))
-    .limit(1);
-
-  if (!supervisor || !supervisor.isActive) {
-    // Don't reveal whether the account exists
-    res.json(genericResponse);
-    return;
-  }
-
-  // Generate 6-digit numeric code
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-
-  await db
-    .update(supervisorsTable)
-    .set({ passwordResetToken: code, passwordResetExpiresAt: expiresAt })
-    .where(eq(supervisorsTable.id, supervisor.id));
-
-  try {
-    await sendPasswordResetEmail(email.toLowerCase().trim(), supervisor.name, code);
-  } catch (err) {
-    console.error("[AUTH] Failed to send reset email:", err);
-    res.status(500).json({ error: "Failed to send reset email. Please try again." });
-    return;
-  }
-
-  res.json(genericResponse);
-});
-
-// POST /api/auth/reset-password — verify code and set new password
-router.post("/auth/reset-password", async (req, res) => {
-  const { email, code, newPassword } = req.body;
-
-  if (!email || !code || !newPassword) {
-    res.status(400).json({ error: "Email, code, and new password are required" });
-    return;
-  }
-  if (typeof newPassword !== "string" || newPassword.length < 6) {
-    res.status(400).json({ error: "New password must be at least 6 characters" });
-    return;
-  }
-  if (typeof code !== "string" || code.trim().length === 0) {
-    res.status(400).json({ error: "Reset code is required" });
-    return;
-  }
-
-  const [supervisor] = await db
-    .select()
-    .from(supervisorsTable)
-    .where(eq(supervisorsTable.email, email.toLowerCase().trim()))
-    .limit(1);
-
-  if (!supervisor || !supervisor.isActive) {
-    res.status(400).json({ error: "Invalid reset code or email" });
-    return;
-  }
-
-  if (!supervisor.passwordResetToken || supervisor.passwordResetToken !== code.trim()) {
-    res.status(400).json({ error: "Invalid or expired reset code" });
-    return;
-  }
-
-  if (!supervisor.passwordResetExpiresAt || new Date() > supervisor.passwordResetExpiresAt) {
-    res.status(400).json({ error: "Reset code has expired. Please request a new one." });
-    return;
-  }
-
-  const passwordHash = hashPassword(newPassword);
-
-  // Update password, clear reset token, sign out all existing sessions
-  await db
-    .update(supervisorsTable)
-    .set({ passwordHash, passwordResetToken: null, passwordResetExpiresAt: null })
-    .where(eq(supervisorsTable.id, supervisor.id));
-
-  await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, supervisor.id));
 
   res.json({ success: true });
 });
