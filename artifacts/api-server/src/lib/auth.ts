@@ -68,7 +68,7 @@ export async function getSupervisorFromToken(token: string) {
   const [supervisor] = await db
     .select()
     .from(supervisorsTable)
-    .where(eq(supervisorsTable.id, session.supervisorId))
+    .where(and(eq(supervisorsTable.id, session.supervisorId), eq(supervisorsTable.isActive, true)))
     .limit(1);
   return supervisor ?? null;
 }

@@ -7,7 +7,7 @@ import {
   deviceSessionsTable,
   pairingCodesTable,
 } from "@workspace/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, gt } from "drizzle-orm";
 import {
   generateToken,
   hashPassword,
@@ -130,44 +130,48 @@ router.post("/auth/device/pair", async (req, res) => {
 
   const normalized = code.toUpperCase().trim();
 
-  const [pairingCode] = await db
-    .select()
-    .from(pairingCodesTable)
-    .where(eq(pairingCodesTable.code, normalized))
-    .limit(1);
-
-  if (!pairingCode) {
-    res.status(404).json({ error: "Invalid pairing code" });
-    return;
-  }
-
-  if (pairingCode.usedAt) {
-    res.status(409).json({ error: "This pairing code has already been used" });
-    return;
-  }
-
-  if (new Date() > pairingCode.expiresAt) {
-    res.status(410).json({ error: "This pairing code has expired" });
-    return;
-  }
-
-  // Mark code as used (one-time only)
-  await db
+  // Atomically claim the code — only succeeds if it exists, is unused, and is not expired.
+  // This prevents a TOCTOU race where two concurrent requests both pass separate read/write checks.
+  const now = new Date();
+  const [marked] = await db
     .update(pairingCodesTable)
-    .set({ usedAt: new Date() })
-    .where(eq(pairingCodesTable.id, pairingCode.id));
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(pairingCodesTable.code, normalized),
+        isNull(pairingCodesTable.usedAt),
+        gt(pairingCodesTable.expiresAt, now),
+      ),
+    )
+    .returning();
+
+  if (!marked) {
+    const [existing] = await db
+      .select()
+      .from(pairingCodesTable)
+      .where(eq(pairingCodesTable.code, normalized))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Invalid pairing code" });
+    } else if (existing.usedAt) {
+      res.status(409).json({ error: "This pairing code has already been used" });
+    } else {
+      res.status(410).json({ error: "This pairing code has expired" });
+    }
+    return;
+  }
 
   // Create long-lived device session
   const sessionToken = generateToken();
   await db.insert(deviceSessionsTable).values({
     token: sessionToken,
-    restaurantId: pairingCode.restaurantId,
+    restaurantId: marked.restaurantId,
   });
 
   const [restaurant] = await db
     .select()
     .from(restaurantsTable)
-    .where(eq(restaurantsTable.id, pairingCode.restaurantId))
+    .where(eq(restaurantsTable.id, marked.restaurantId))
     .limit(1);
 
   res.json({

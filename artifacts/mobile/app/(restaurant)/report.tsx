@@ -233,7 +233,9 @@ export default function ReportIssueScreen() {
         const raw = uploadInfo.objectPath;
         imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
       } catch (e) {
-        console.warn("Image upload failed, continuing without image:", e);
+        setIsUploading(false);
+        setError("Photo upload failed. Submit without the photo, or try again.");
+        return;
       } finally {
         setIsUploading(false);
       }

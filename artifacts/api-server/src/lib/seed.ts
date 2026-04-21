@@ -1,20 +1,11 @@
 import { db, supervisorsTable, restaurantsTable } from "@workspace/db";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
+import crypto from "crypto";
 
-const SEED_SUPERVISORS = [
-  {
-    username: "admin",
-    password: "admin123",
-    name: "Admin",
-    role: "admin",
-  },
-  {
-    username: "supervisor",
-    password: "pass123",
-    name: "Supervisor",
-    role: "supervisor",
-  },
+const SEED_SUPERVISOR_TEMPLATES = [
+  { username: "admin", name: "Admin", role: "admin" as const },
+  { username: "supervisor", name: "Supervisor", role: "supervisor" as const },
 ];
 
 const SEED_RESTAURANTS = [
@@ -29,16 +20,18 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
     const existingSupervisors = await db.select().from(supervisorsTable).limit(1);
     if (existingSupervisors.length === 0) {
       logger.info("Seeding supervisors...");
-      for (const sup of SEED_SUPERVISORS) {
+      for (const sup of SEED_SUPERVISOR_TEMPLATES) {
+        const password = crypto.randomBytes(10).toString("base64url");
         await db.insert(supervisorsTable).values({
           username: sup.username,
-          passwordHash: hashPassword(sup.password),
+          passwordHash: hashPassword(password),
           name: sup.name,
           role: sup.role,
           isActive: true,
         });
+        logger.info({ username: sup.username, password }, "Seeded supervisor — save this password, it will not be shown again");
       }
-      logger.info({ count: SEED_SUPERVISORS.length }, "Supervisors seeded");
+      logger.info({ count: SEED_SUPERVISOR_TEMPLATES.length }, "Supervisors seeded");
     } else {
       logger.info("Supervisors already exist, skipping seed");
     }

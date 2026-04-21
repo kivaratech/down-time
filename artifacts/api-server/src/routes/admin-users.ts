@@ -172,7 +172,7 @@ router.patch("/admin/users/:id", async (req, res) => {
   res.json(updated);
 });
 
-// POST /api/admin/users/:id/deactivate — delete the user
+// POST /api/admin/users/:id/deactivate — soft-deactivate the user and revoke sessions
 router.post("/admin/users/:id/deactivate", async (req, res) => {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -184,12 +184,47 @@ router.post("/admin/users/:id/deactivate", async (req, res) => {
   }
 
   if (id === admin.id) {
-    res.status(400).json({ error: "You cannot delete your own account" });
+    res.status(400).json({ error: "You cannot deactivate your own account" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(supervisorsTable)
+    .set({ isActive: false })
+    .where(eq(supervisorsTable.id, id))
+    .returning({ id: supervisorsTable.id });
+
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
 
   await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
-  await db.delete(supervisorsTable).where(eq(supervisorsTable.id, id));
+
+  res.json({ success: true });
+});
+
+// POST /api/admin/users/:id/activate — re-enable a deactivated supervisor
+router.post("/admin/users/:id/activate", async (req, res) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(supervisorsTable)
+    .set({ isActive: true })
+    .where(eq(supervisorsTable.id, id))
+    .returning({ id: supervisorsTable.id });
+
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
 
   res.json({ success: true });
 });

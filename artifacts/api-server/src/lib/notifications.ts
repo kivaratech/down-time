@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 type ExpoPushMessage = {
@@ -29,18 +31,19 @@ async function sendExpoPushNotifications(messages: ExpoPushMessage[]): Promise<v
     });
 
     if (!response.ok) {
-      console.error("[notifications] Expo push API error:", response.status, await response.text());
+      const body = await response.text();
+      logger.error({ status: response.status, body }, "Expo push API error");
       return;
     }
 
     const result = (await response.json()) as { data: ExpoPushTicket[] };
     for (const ticket of result.data ?? []) {
       if (ticket.status === "error") {
-        console.error("[notifications] Push ticket error:", ticket.message, ticket.details);
+        logger.error({ message: ticket.message, details: ticket.details }, "Push ticket error");
       }
     }
   } catch (err) {
-    console.error("[notifications] Failed to send push notifications:", err);
+    logger.error({ err }, "Failed to send push notifications");
   }
 }
 

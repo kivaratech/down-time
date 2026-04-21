@@ -7,7 +7,7 @@ import {
   supervisorsTable,
   supervisorRestaurantsTable,
 } from "@workspace/db";
-import { eq, and, asc, lte, isNotNull, inArray, SQL } from "drizzle-orm";
+import { eq, and, asc, lte, isNotNull, inArray, or, SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   extractToken,
@@ -27,6 +27,9 @@ import {
   AddCommentParams,
   AddCommentBody,
 } from "@workspace/api-zod";
+import { z } from "zod";
+
+const SAFE_OBJECT_PATH = /^[\w\-.\/]+$/;
 
 const router: IRouter = Router();
 
@@ -195,6 +198,16 @@ router.post("/issues", async (req, res) => {
     return;
   }
 
+  if (description.length > 500) {
+    res.status(400).json({ error: "Description must be 500 characters or less" });
+    return;
+  }
+
+  if (imageUrl && !SAFE_OBJECT_PATH.test(imageUrl)) {
+    res.status(400).json({ error: "Invalid imageUrl format" });
+    return;
+  }
+
   const category = getCategoryForArea(area);
 
   const [issue] = await db
@@ -216,21 +229,48 @@ router.post("/issues", async (req, res) => {
   const [fullIssue] = await buildIssueQuery().where(eq(issuesTable.id, issue.id));
   res.status(201).json(fullIssue);
 
-  // Send push notifications to supervisors — non-blocking, never delays the response
-  const supervisors = await db
-    .select({ expoPushToken: supervisorsTable.expoPushToken })
-    .from(supervisorsTable)
-    .where(isNotNull(supervisorsTable.expoPushToken));
-
-  notifySupervisorsOfNewIssue({
-    restaurantName: fullIssue.restaurantName,
-    equipmentType: fullIssue.equipmentType,
-    subItem: fullIssue.subItem,
-    description: fullIssue.description,
-    supervisorTokens: supervisors.map((s) => s.expoPushToken),
-  }).catch((err) => {
-    console.error("[issues] Notification send failed:", err);
-  });
+  // Notify supervisors assigned to this restaurant and all admins — non-blocking
+  const log = req.log;
+  Promise.all([
+    db
+      .select({ expoPushToken: supervisorsTable.expoPushToken })
+      .from(supervisorsTable)
+      .innerJoin(
+        supervisorRestaurantsTable,
+        and(
+          eq(supervisorRestaurantsTable.supervisorId, supervisorsTable.id),
+          eq(supervisorRestaurantsTable.restaurantId, restaurantId),
+        ),
+      )
+      .where(and(isNotNull(supervisorsTable.expoPushToken), eq(supervisorsTable.isActive, true))),
+    db
+      .select({ expoPushToken: supervisorsTable.expoPushToken })
+      .from(supervisorsTable)
+      .where(
+        and(
+          eq(supervisorsTable.role, "admin"),
+          isNotNull(supervisorsTable.expoPushToken),
+          eq(supervisorsTable.isActive, true),
+        ),
+      ),
+  ])
+    .then(([assigned, admins]) => {
+      const tokenSet = new Set(
+        [...assigned, ...admins]
+          .map((s) => s.expoPushToken)
+          .filter((t): t is string => t !== null),
+      );
+      return notifySupervisorsOfNewIssue({
+        restaurantName: fullIssue.restaurantName,
+        equipmentType: fullIssue.equipmentType,
+        subItem: fullIssue.subItem,
+        description: fullIssue.description,
+        supervisorTokens: Array.from(tokenSet),
+      });
+    })
+    .catch((err) => {
+      log.error({ err }, "Notification send failed");
+    });
 });
 
 // GET /api/issues/:id
@@ -382,6 +422,37 @@ router.post("/issues/:id/comments", async (req, res) => {
     .returning();
 
   res.status(201).json(comment);
+});
+
+const DeleteCommentParams = z.object({ id: z.coerce.number().int().positive(), commentId: z.coerce.number().int().positive() });
+
+// DELETE /api/issues/:id/comments/:commentId — admin only
+router.delete("/issues/:id/comments/:commentId", async (req, res) => {
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor || supervisor.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  const params = DeleteCommentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid issue or comment ID" });
+    return;
+  }
+  const { id: issueId, commentId } = params.data;
+
+  const [deleted] = await db
+    .delete(commentsTable)
+    .where(and(eq(commentsTable.id, commentId), eq(commentsTable.issueId, issueId)))
+    .returning({ id: commentsTable.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Comment not found" });
+    return;
+  }
+
+  res.json({ success: true });
 });
 
 export default router;
