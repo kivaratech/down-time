@@ -233,7 +233,7 @@ router.post("/issues", async (req, res) => {
   const log = req.log;
   Promise.all([
     db
-      .select({ expoPushToken: supervisorsTable.expoPushToken })
+      .select({ id: supervisorsTable.id, expoPushToken: supervisorsTable.expoPushToken })
       .from(supervisorsTable)
       .innerJoin(
         supervisorRestaurantsTable,
@@ -244,7 +244,7 @@ router.post("/issues", async (req, res) => {
       )
       .where(and(isNotNull(supervisorsTable.expoPushToken), eq(supervisorsTable.isActive, true))),
     db
-      .select({ expoPushToken: supervisorsTable.expoPushToken })
+      .select({ id: supervisorsTable.id, expoPushToken: supervisorsTable.expoPushToken })
       .from(supervisorsTable)
       .where(
         and(
@@ -255,17 +255,21 @@ router.post("/issues", async (req, res) => {
       ),
   ])
     .then(([assigned, admins]) => {
-      const tokenSet = new Set(
-        [...assigned, ...admins]
-          .map((s) => s.expoPushToken)
-          .filter((t): t is string => t !== null),
-      );
+      const bySupervisor = new Map<number, string>();
+      for (const s of [...assigned, ...admins]) {
+        if (s.expoPushToken) bySupervisor.set(s.id, s.expoPushToken);
+      }
+      const recipients = Array.from(bySupervisor, ([supervisorId, token]) => ({
+        supervisorId,
+        token,
+      }));
       return notifySupervisorsOfNewIssue({
-        restaurantName: fullIssue.restaurantName,
+        issueId: fullIssue.id,
+        restaurantName: fullIssue.restaurantName ?? "Restaurant",
         equipmentType: fullIssue.equipmentType,
         subItem: fullIssue.subItem,
         description: fullIssue.description,
-        supervisorTokens: Array.from(tokenSet),
+        recipients,
       });
     })
     .catch((err) => {

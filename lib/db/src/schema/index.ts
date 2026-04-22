@@ -6,3 +6,4 @@ export * from "./issues";
 export * from "./comments";
 export * from "./equipment";
 export * from "./supervisor-restaurants";
+export * from "./notification-attempts";
