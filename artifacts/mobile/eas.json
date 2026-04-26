@@ -12,7 +12,7 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "YOUR_REPLIT_DEV_DOMAIN_HERE"
+        "EXPO_PUBLIC_DOMAIN": "workspaceapi-server-production-8421.up.railway.app"
       }
     },
     "preview": {
