@@ -29,7 +29,7 @@ COPY . .
 RUN pnpm --filter @workspace/api-server run build
 
 # Create a self-contained production directory (production deps only)
-RUN pnpm deploy --filter @workspace/api-server --prod /prod
+RUN pnpm deploy --filter @workspace/api-server --prod --legacy /prod
 
 
 FROM node:24-alpine
