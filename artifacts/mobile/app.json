@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.downtime.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0F3460"
@@ -58,7 +59,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "d47f0c91-3bce-49c8-ab65-5d2cb089ea05"
       }
     }
   }

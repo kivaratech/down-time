@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1022785080477",
+    "project_id": "downtime-77b0a",
+    "storage_bucket": "downtime-77b0a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022785080477:android:8272dd54a9b83d210e5874",
+        "android_client_info": {
+          "package_name": "com.downtime.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6mAYAtd2zAFKcjJcnGO_Bf2oHJ5Ycl6c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

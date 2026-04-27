@@ -44,6 +44,7 @@ export default function LoginScreen() {
     if (!username.trim() || !password || loading) return;
     setLoading(true);
     setError("");
+
     try {
       const res = await supervisorLogin({ username: username.trim(), password });
       await loginSupervisor(res.token, {

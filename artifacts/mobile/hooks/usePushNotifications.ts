@@ -26,11 +26,11 @@ async function sendTokenToServer(pushToken: string, authToken: string): Promise<
 }
 
 function getProjectId(): string | undefined {
-  return (
-    Constants.expoConfig?.extra?.eas?.projectId ??
-    (Constants as Record<string, unknown>).easConfig?.projectId as string | undefined ??
-    process.env.EXPO_PUBLIC_EAS_PROJECT_ID
-  );
+  const id =
+    (Constants.expoConfig?.extra?.eas?.projectId as string | undefined) ||
+    ((Constants as Record<string, unknown>).easConfig as { projectId?: string } | undefined)?.projectId ||
+    process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+  return id || undefined;
 }
 
 export async function registerSupervisorPushToken(authToken: string): Promise<void> {
@@ -62,27 +62,19 @@ export async function registerSupervisorPushToken(authToken: string): Promise<vo
   const projectId = getProjectId();
   if (!projectId) {
     console.warn(
-      "[notifications] No EAS project ID found. " +
-      "Set EXPO_PUBLIC_EAS_PROJECT_ID in your environment or add " +
-      "extra.eas.projectId to app.json. " +
-      "Push notifications require a development build + EAS project."
+      "[notifications] EAS project ID is missing — push token cannot be obtained.\n" +
+      "Fix: run `eas build:configure` inside artifacts/mobile, then copy the UUID\n" +
+      "into app.json at extra.eas.projectId."
     );
+    return;
   }
 
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
-    );
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     console.log("[notifications] Got push token:", tokenData.data.slice(0, 30) + "…");
     await sendTokenToServer(tokenData.data, authToken);
   } catch (err) {
     console.warn("[notifications] Failed to get Expo push token:", err);
-    console.warn(
-      "[notifications] To enable push notifications: " +
-      "1) Use a development build (not Expo Go on Android/SDK53+), " +
-      "2) Run `eas build:configure` to register an EAS project, " +
-      "3) Set EXPO_PUBLIC_EAS_PROJECT_ID env var."
-    );
   }
 }
 
