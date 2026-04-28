@@ -16,6 +16,7 @@ import {
 } from "../lib/auth";
 import { getCategoryForArea } from "../lib/equipment";
 import { notifySupervisorsOfNewIssue } from "../lib/notifications";
+import { ObjectStorageService } from "../lib/objectStorage";
 import {
   ListRestaurantIssuesParams,
   ListRestaurantIssuesQueryParams,
@@ -30,6 +31,7 @@ import {
 import { z } from "zod";
 
 const SAFE_OBJECT_PATH = /^[\w\-.\/]+$/;
+const objectStorageService = new ObjectStorageService();
 
 const router: IRouter = Router();
 
@@ -306,7 +308,18 @@ router.get("/issues/:id", async (req, res) => {
     return;
   }
 
-  req.log.info({ issueId: id, hasImage: !!issue.imageUrl, imageUrl: issue.imageUrl ?? null }, "issue fetched");
+  // Replace raw object path with a short-lived signed read URL so the
+  // mobile Image component can fetch from GCS directly without auth headers.
+  let resolvedImageUrl = issue.imageUrl;
+  if (issue.imageUrl) {
+    const signedUrl = await objectStorageService.getSignedReadUrl(issue.imageUrl);
+    if (signedUrl) {
+      resolvedImageUrl = signedUrl;
+    }
+    req.log.info({ issueId: id, hasImage: true, signedUrlGenerated: !!signedUrl }, "issue fetched");
+  } else {
+    req.log.info({ issueId: id, hasImage: false }, "issue fetched");
+  }
 
   const comments = await db
     .select()
@@ -314,7 +327,7 @@ router.get("/issues/:id", async (req, res) => {
     .where(eq(commentsTable.issueId, id))
     .orderBy(asc(commentsTable.createdAt));
 
-  res.json({ ...issue, comments });
+  res.json({ ...issue, imageUrl: resolvedImageUrl, comments });
 });
 
 // PATCH /api/issues/:id

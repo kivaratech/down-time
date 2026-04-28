@@ -151,9 +151,14 @@ export default function IssueDetailScreen() {
     );
   }
 
-  console.log("[issue-detail] id:", id, "imageUrl:", issue.imageUrl ?? "none", "hasToken:", !!token);
-  if (issue.imageUrl) {
-    console.log("[issue-detail] image request URL:", `${API_BASE}/api/storage/objects/${issue.imageUrl}`);
+  const isSignedUrl = typeof issue.imageUrl === "string" && issue.imageUrl.startsWith("https://");
+  const imageUri = issue.imageUrl
+    ? (isSignedUrl ? issue.imageUrl : `${API_BASE}/api/storage/objects/${issue.imageUrl}`)
+    : null;
+
+  console.log("[issue-detail] id:", id, "hasImage:", !!issue.imageUrl, "isSignedUrl:", isSignedUrl, "hasToken:", !!token);
+  if (imageUri) {
+    console.log("[issue-detail] loading from:", isSignedUrl ? "GCS signed URL" : "proxy");
   }
 
   const currentStatus = localStatus ?? (issue.status as IssueStatus);
@@ -244,7 +249,7 @@ export default function IssueDetailScreen() {
 
           <Text style={styles.description}>{issue.description}</Text>
 
-          {issue.imageUrl && (
+          {imageUri && (
             imageError ? (
               <View style={styles.imageErrorContainer}>
                 <Feather name="image" size={24} color={Colors.textTertiary} />
@@ -253,8 +258,8 @@ export default function IssueDetailScreen() {
             ) : (
               <Image
                 source={{
-                  uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}`,
-                  headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                  uri: imageUri,
+                  headers: (!isSignedUrl && token) ? { Authorization: `Bearer ${token}` } : undefined,
                 }}
                 style={styles.issueImage}
                 resizeMode="cover"

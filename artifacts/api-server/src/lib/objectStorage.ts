@@ -155,6 +155,23 @@ export class ObjectStorageService {
     return objectFile;
   }
 
+  async getSignedReadUrl(imageUrl: string): Promise<string | null> {
+    try {
+      const entityDir = this.getPrivateObjectDir();
+      const fullPath = `${entityDir}/${imageUrl}`;
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      const file = objectStorageClient.bucket(bucketName).file(objectName);
+      const [url] = await file.getSignedUrl({
+        action: "read",
+        expires: Date.now() + 10 * 60 * 1000, // 10 minutes
+        version: "v4",
+      });
+      return url;
+    } catch {
+      return null;
+    }
+  }
+
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;
