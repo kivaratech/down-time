@@ -306,6 +306,8 @@ router.get("/issues/:id", async (req, res) => {
     return;
   }
 
+  req.log.info({ issueId: id, hasImage: !!issue.imageUrl, imageUrl: issue.imageUrl ?? null }, "issue fetched");
+
   const comments = await db
     .select()
     .from(commentsTable)

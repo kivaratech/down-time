@@ -83,6 +83,7 @@ export default function IssueDetailScreen() {
   const [localPriority, setLocalPriority] = useState<IssuePriority | undefined>(undefined);
   const [assignedToInput, setAssignedToInput] = useState<string | null>(null);
   const [editingAssignment, setEditingAssignment] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const { data: issue, isLoading } = useGetIssue(Number(id), {
@@ -148,6 +149,11 @@ export default function IssueDetailScreen() {
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
+  }
+
+  console.log("[issue-detail] id:", id, "imageUrl:", issue.imageUrl ?? "none", "hasToken:", !!token);
+  if (issue.imageUrl) {
+    console.log("[issue-detail] image request URL:", `${API_BASE}/api/storage/objects/${issue.imageUrl}`);
   }
 
   const currentStatus = localStatus ?? (issue.status as IssueStatus);
@@ -239,14 +245,25 @@ export default function IssueDetailScreen() {
           <Text style={styles.description}>{issue.description}</Text>
 
           {issue.imageUrl && (
-            <Image
-              source={{
-                uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}`,
-                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-              }}
-              style={styles.issueImage}
-              resizeMode="cover"
-            />
+            imageError ? (
+              <View style={styles.imageErrorContainer}>
+                <Feather name="image" size={24} color={Colors.textTertiary} />
+                <Text style={styles.imageErrorText}>Photo failed to load</Text>
+              </View>
+            ) : (
+              <Image
+                source={{
+                  uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}`,
+                  headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                }}
+                style={styles.issueImage}
+                resizeMode="cover"
+                onError={(e) => {
+                  console.log("[issue-detail] image load error:", e.nativeEvent.error);
+                  setImageError(true);
+                }}
+              />
+            )
           )}
 
           <View style={styles.metaGrid}>
@@ -577,6 +594,22 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 12,
     marginBottom: 16,
+  },
+  imageErrorContainer: {
+    width: "100%",
+    height: 80,
+    borderRadius: 12,
+    marginBottom: 16,
+    backgroundColor: Colors.borderLight,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  imageErrorText: {
+    fontSize: 14,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
   },
   metaGrid: {
     gap: 8,

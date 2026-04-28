@@ -225,11 +225,14 @@ export default function ReportIssueScreen() {
         });
         const fileResponse = await fetch(photoUri);
         const blob = await fileResponse.blob();
-        await fetch(uploadInfo.uploadURL, {
+        const putResponse = await fetch(uploadInfo.uploadURL, {
           method: "PUT",
           body: blob,
           headers: { "Content-Type": "image/jpeg" },
         });
+        if (!putResponse.ok) {
+          throw new Error(`GCS upload failed: ${putResponse.status}`);
+        }
         const raw = uploadInfo.objectPath;
         imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
       } catch (e) {
