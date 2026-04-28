@@ -31,6 +31,8 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
+    req.log.info({ objectPath, uploadURLIsHttps: uploadURL.startsWith("https://") }, "upload URL generated");
+
     res.json(
       RequestUploadUrlResponse.parse({
         uploadURL,

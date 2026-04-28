@@ -227,17 +227,24 @@ export default function SupervisorReportScreen() {
           size: photoSize || 100000,
           contentType: "image/jpeg",
         });
+        console.log("[photo] supervisor upload URL received, objectPath:", uploadInfo.objectPath);
         const fileResponse = await fetch(photoUri);
         const blob = await fileResponse.blob();
-        await fetch(uploadInfo.uploadURL, {
+        console.log("[photo] supervisor blob size:", blob.size, "type:", blob.type);
+        const putResponse = await fetch(uploadInfo.uploadURL, {
           method: "PUT",
           body: blob,
           headers: { "Content-Type": "image/jpeg" },
         });
+        console.log("[photo] supervisor GCS PUT status:", putResponse.status, putResponse.ok ? "ok" : "FAILED");
+        if (!putResponse.ok) {
+          throw new Error(`GCS upload failed: ${putResponse.status}`);
+        }
         const raw = uploadInfo.objectPath;
         imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
+        console.log("[photo] supervisor imageObjectPath to save:", imageObjectPath);
       } catch (e) {
-        console.warn("Image upload failed, continuing without image:", e);
+        console.warn("[photo] supervisor upload failed:", e);
       } finally {
         setIsUploading(false);
       }

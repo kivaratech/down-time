@@ -229,6 +229,7 @@ router.post("/issues", async (req, res) => {
     .returning();
 
   const [fullIssue] = await buildIssueQuery().where(eq(issuesTable.id, issue.id));
+  req.log.info({ issueId: issue.id, savedImageUrl: imageUrl ?? null }, "issue created");
   res.status(201).json(fullIssue);
 
   // Notify supervisors assigned to this restaurant and all admins — non-blocking

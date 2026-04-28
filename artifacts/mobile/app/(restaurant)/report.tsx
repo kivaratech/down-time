@@ -226,18 +226,22 @@ export default function ReportIssueScreen() {
           size: photoSize || 100000,
           contentType: "image/jpeg",
         });
+        console.log("[photo] upload URL received, objectPath:", uploadInfo.objectPath);
         const fileResponse = await fetch(photoUri);
         const blob = await fileResponse.blob();
+        console.log("[photo] blob size:", blob.size, "type:", blob.type);
         const putResponse = await fetch(uploadInfo.uploadURL, {
           method: "PUT",
           body: blob,
           headers: { "Content-Type": "image/jpeg" },
         });
+        console.log("[photo] GCS PUT status:", putResponse.status, putResponse.ok ? "ok" : "FAILED");
         if (!putResponse.ok) {
           throw new Error(`GCS upload failed: ${putResponse.status}`);
         }
         const raw = uploadInfo.objectPath;
         imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
+        console.log("[photo] imageObjectPath to save:", imageObjectPath);
       } catch (e) {
         setIsUploading(false);
         setError("Photo upload failed. Submit without the photo, or try again.");
