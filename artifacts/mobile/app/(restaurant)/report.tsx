@@ -167,6 +167,7 @@ export default function ReportIssueScreen() {
   async function handleTakePhoto() {
     await Haptics.selectionAsync();
     if (Platform.OS === "web") {
+      console.log("[photo] restaurant: web library picker");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
@@ -182,6 +183,7 @@ export default function ReportIssueScreen() {
 
     const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
     if (cameraResult.status === "granted") {
+      console.log("[photo] restaurant: camera");
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
         quality: 0.8,
@@ -193,6 +195,7 @@ export default function ReportIssueScreen() {
         setPhotoSize(asset.fileSize ?? 100000);
       }
     } else {
+      console.log("[photo] restaurant: library picker (camera denied)");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,

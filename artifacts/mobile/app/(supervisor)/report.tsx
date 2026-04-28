@@ -169,10 +169,11 @@ export default function SupervisorReportScreen() {
   async function handleTakePhoto() {
     await Haptics.selectionAsync();
     if (Platform.OS === "web") {
+      console.log("[photo] supervisor: web library picker");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
-        allowsEditing: true,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -183,10 +184,11 @@ export default function SupervisorReportScreen() {
     }
     const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
     if (cameraResult.status === "granted") {
+      console.log("[photo] supervisor: camera");
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
         quality: 0.8,
-        allowsEditing: true,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -194,10 +196,11 @@ export default function SupervisorReportScreen() {
         setPhotoSize(asset.fileSize ?? 100000);
       }
     } else {
+      console.log("[photo] supervisor: library picker (camera denied)");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
-        allowsEditing: true,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
