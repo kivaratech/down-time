@@ -5,7 +5,6 @@ import {
   useListRestaurants,
   getListIssuesQueryKey,
   getGetEquipmentQueryKey,
-  requestUploadUrl,
   type Restaurant,
   type EquipmentItem,
 } from "@workspace/api-client-react";
@@ -29,6 +28,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
+
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 const AREAS = ["Front Counter", "Grill", "Back of House", "Technology"] as const;
 type Area = (typeof AREAS)[number];
@@ -47,6 +49,7 @@ type Step = "restaurant" | "area" | "equipment" | "subitem" | "description";
 export default function SupervisorReportScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { token } = useAuth();
 
   const [step, setStep] = useState<Step>("restaurant");
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
@@ -222,27 +225,24 @@ export default function SupervisorReportScreen() {
     if (photoUri) {
       setIsUploading(true);
       try {
-        const uploadInfo = await requestUploadUrl({
-          name: "issue-photo.jpg",
-          size: photoSize || 100000,
-          contentType: "image/jpeg",
-        });
-        console.log("[photo] supervisor upload URL received, objectPath:", uploadInfo.objectPath);
         const fileResponse = await fetch(photoUri);
         const blob = await fileResponse.blob();
         console.log("[photo] supervisor blob size:", blob.size, "type:", blob.type);
-        const putResponse = await fetch(uploadInfo.uploadURL, {
-          method: "PUT",
+        const uploadResponse = await fetch(`${API_BASE}/api/storage/uploads/photo`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "image/jpeg",
+          },
           body: blob,
-          headers: { "Content-Type": "image/jpeg" },
         });
-        console.log("[photo] supervisor GCS PUT status:", putResponse.status, putResponse.ok ? "ok" : "FAILED");
-        if (!putResponse.ok) {
-          throw new Error(`GCS upload failed: ${putResponse.status}`);
+        console.log("[photo] supervisor server upload status:", uploadResponse.status, uploadResponse.ok ? "ok" : "FAILED");
+        if (!uploadResponse.ok) {
+          throw new Error(`Server upload failed: ${uploadResponse.status}`);
         }
-        const raw = uploadInfo.objectPath;
-        imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
-        console.log("[photo] supervisor imageObjectPath to save:", imageObjectPath);
+        const uploadData = await uploadResponse.json() as { objectPath: string };
+        imageObjectPath = uploadData.objectPath;
+        console.log("[photo] supervisor imageObjectPath:", imageObjectPath);
       } catch (e) {
         console.warn("[photo] supervisor upload failed:", e);
       } finally {

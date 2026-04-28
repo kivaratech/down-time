@@ -155,6 +155,18 @@ export class ObjectStorageService {
     return objectFile;
   }
 
+  async uploadPhotoBuffer(buffer: Buffer): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const objectName = `uploads/${objectId}`;
+    const fullPath = `${privateObjectDir}/${objectName}`;
+    const { bucketName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(buffer, { metadata: { contentType: "image/jpeg" } });
+    console.log("[storage] uploadPhotoBuffer: saved", objectName, "to", bucketName, "bytes:", buffer.length);
+    return objectName;
+  }
+
   async getSignedReadUrl(imageUrl: string): Promise<string | null> {
     try {
       const entityDir = this.getPrivateObjectDir();

@@ -4,7 +4,6 @@ import {
   useGetEquipment,
   getListRestaurantIssuesQueryKey,
   getGetEquipmentQueryKey,
-  requestUploadUrl,
 } from "@workspace/api-client-react";
 import type { EquipmentArea, EquipmentItem } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
@@ -30,6 +29,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+
 const AREAS = ["Front Counter", "Grill", "Back of House", "Technology"] as const;
 type Area = (typeof AREAS)[number];
 
@@ -46,7 +47,7 @@ type Step = "area" | "equipment" | "subitem" | "description" | "submitting" | "d
 
 export default function ReportIssueScreen() {
   const insets = useSafeAreaInsets();
-  const { restaurant } = useAuth();
+  const { restaurant, token } = useAuth();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>("area");
@@ -221,27 +222,24 @@ export default function ReportIssueScreen() {
     if (photoUri) {
       setIsUploading(true);
       try {
-        const uploadInfo = await requestUploadUrl({
-          name: "issue-photo.jpg",
-          size: photoSize || 100000,
-          contentType: "image/jpeg",
-        });
-        console.log("[photo] upload URL received, objectPath:", uploadInfo.objectPath);
         const fileResponse = await fetch(photoUri);
         const blob = await fileResponse.blob();
         console.log("[photo] blob size:", blob.size, "type:", blob.type);
-        const putResponse = await fetch(uploadInfo.uploadURL, {
-          method: "PUT",
+        const uploadResponse = await fetch(`${API_BASE}/api/storage/uploads/photo`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "image/jpeg",
+          },
           body: blob,
-          headers: { "Content-Type": "image/jpeg" },
         });
-        console.log("[photo] GCS PUT status:", putResponse.status, putResponse.ok ? "ok" : "FAILED");
-        if (!putResponse.ok) {
-          throw new Error(`GCS upload failed: ${putResponse.status}`);
+        console.log("[photo] server upload status:", uploadResponse.status, uploadResponse.ok ? "ok" : "FAILED");
+        if (!uploadResponse.ok) {
+          throw new Error(`Server upload failed: ${uploadResponse.status}`);
         }
-        const raw = uploadInfo.objectPath;
-        imageObjectPath = raw.startsWith("/objects/") ? raw.slice("/objects/".length) : raw;
-        console.log("[photo] imageObjectPath to save:", imageObjectPath);
+        const uploadData = await uploadResponse.json() as { objectPath: string };
+        imageObjectPath = uploadData.objectPath;
+        console.log("[photo] imageObjectPath:", imageObjectPath);
       } catch (e) {
         setIsUploading(false);
         setError("Photo upload failed. Submit without the photo, or try again.");

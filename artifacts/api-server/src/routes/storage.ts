@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import express, { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import {
   RequestUploadUrlBody,
@@ -10,6 +10,39 @@ import { extractToken, getRestaurantFromToken, getSupervisorFromToken } from "..
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+/**
+ * POST /storage/uploads/photo
+ *
+ * Upload a JPEG photo via the server (proxy to GCS).
+ * The client sends the raw JPEG body with Authorization header.
+ * The server writes directly to GCS and returns the objectPath.
+ */
+router.post("/storage/uploads/photo", express.raw({ type: "*/*", limit: "10mb" }), async (req: Request, res: Response) => {
+  const token = extractToken(req);
+  const [restaurant, supervisor] = await Promise.all([
+    getRestaurantFromToken(token),
+    getSupervisorFromToken(token),
+  ]);
+  if (!restaurant && !supervisor) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    res.status(400).json({ error: "No photo data received" });
+    return;
+  }
+
+  try {
+    const objectPath = await objectStorageService.uploadPhotoBuffer(req.body);
+    req.log.info({ objectPath, bytes: req.body.length }, "photo uploaded via proxy");
+    res.json({ objectPath });
+  } catch (error) {
+    req.log.error({ err: error }, "Photo proxy upload failed");
+    res.status(500).json({ error: "Failed to upload photo" });
+  }
+});
 
 /**
  * POST /storage/uploads/request-url
