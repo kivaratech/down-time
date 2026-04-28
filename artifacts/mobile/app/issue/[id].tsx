@@ -71,7 +71,7 @@ function getTimeLabel(dateStr: string): string {
 export default function IssueDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { authType, restaurant, supervisor } = useAuth();
+  const { authType, restaurant, supervisor, token } = useAuth();
   const queryClient = useQueryClient();
   const isSupervisor = authType === "supervisor";
 
@@ -240,7 +240,10 @@ export default function IssueDetailScreen() {
 
           {issue.imageUrl && (
             <Image
-              source={{ uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}` }}
+              source={{
+                uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}`,
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+              }}
               style={styles.issueImage}
               resizeMode="cover"
             />
