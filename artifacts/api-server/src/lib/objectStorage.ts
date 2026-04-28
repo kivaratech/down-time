@@ -9,25 +9,28 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
-const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+function createStorageClient(): Storage {
+  const keyJson = process.env.GCS_SERVICE_ACCOUNT_JSON;
+  if (!keyJson) {
+    throw new Error(
+      "[storage] GCS_SERVICE_ACCOUNT_JSON env var is not set. " +
+        "Generate a service account key in the Firebase console (Project Settings → Service Accounts) " +
+        "and paste the full JSON as this env var."
+    );
+  }
+  let credentials: Record<string, unknown>;
+  try {
+    credentials = JSON.parse(keyJson);
+  } catch {
+    throw new Error(
+      "[storage] GCS_SERVICE_ACCOUNT_JSON is not valid JSON. " +
+        "Check that the env var contains the full contents of the service account key file."
+    );
+  }
+  return new Storage({ credentials, projectId: credentials.project_id as string });
+}
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+export const objectStorageClient = createStorageClient();
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -60,13 +63,17 @@ export class ObjectStorageService {
   }
 
   getPrivateObjectDir(): string {
-    const dir = process.env.PRIVATE_OBJECT_DIR || "";
-    if (!dir) {
+    const raw = process.env.PRIVATE_OBJECT_DIR || "";
+    if (!raw) {
       throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "[storage] PRIVATE_OBJECT_DIR not set. " +
+          "Set it to the GCS bucket name, e.g. /downtime-77b0a.firebasestorage.app"
       );
     }
+    // Normalize: always leading slash, never trailing slash.
+    // This ensures normalizeObjectEntityPath can match against url.pathname
+    // which always starts with /.
+    const dir = (raw.startsWith("/") ? raw : `/${raw}`).replace(/\/+$/, "");
     return dir;
   }
 
@@ -108,24 +115,18 @@ export class ObjectStorageService {
 
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
-    return signObjectURL({
-      bucketName,
-      objectName,
-      method: "PUT",
-      ttlSec: 900,
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    const [url] = await file.getSignedUrl({
+      action: "write",
+      expires: Date.now() + 900_000,
+      contentType: "image/jpeg",
+      version: "v4",
     });
+    return url;
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File> {
@@ -227,41 +228,3 @@ function parseObjectPath(path: string): {
   };
 }
 
-async function signObjectURL({
-  bucketName,
-  objectName,
-  method,
-  ttlSec,
-}: {
-  bucketName: string;
-  objectName: string;
-  method: "GET" | "PUT" | "DELETE" | "HEAD";
-  ttlSec: number;
-}): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
-  }
-
-  const { signed_url: signedURL } = await response.json();
-  return signedURL;
-}

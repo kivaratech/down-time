@@ -170,7 +170,7 @@ export default function ReportIssueScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
-        allowsEditing: true,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -185,7 +185,7 @@ export default function ReportIssueScreen() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
         quality: 0.8,
-        allowsEditing: true,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -196,7 +196,7 @@ export default function ReportIssueScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
-        allowsEditing: true,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
