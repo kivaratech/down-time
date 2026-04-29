@@ -28,6 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { compressPhotoForUpload } from "@/lib/photoUtils";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -59,6 +60,7 @@ export default function ReportIssueScreen() {
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoOriginalWidth, setPhotoOriginalWidth] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
   const createIssueMutation = useCreateIssue({
@@ -173,7 +175,9 @@ export default function ReportIssueScreen() {
         allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
-        setPhotoUri(result.assets[0].uri);
+        const asset = result.assets[0];
+        setPhotoUri(asset.uri);
+        setPhotoOriginalWidth(asset.width ?? 0);
       }
       return;
     }
@@ -186,7 +190,9 @@ export default function ReportIssueScreen() {
         allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
-        setPhotoUri(result.assets[0].uri);
+        const asset = result.assets[0];
+        setPhotoUri(asset.uri);
+        setPhotoOriginalWidth(asset.width ?? 0);
       }
     } else {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -195,7 +201,9 @@ export default function ReportIssueScreen() {
         allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
-        setPhotoUri(result.assets[0].uri);
+        const asset = result.assets[0];
+        setPhotoUri(asset.uri);
+        setPhotoOriginalWidth(asset.width ?? 0);
       }
     }
   }
@@ -212,8 +220,10 @@ export default function ReportIssueScreen() {
     if (photoUri) {
       setIsUploading(true);
       try {
-        const fileResponse = await fetch(photoUri);
+        const compressed = await compressPhotoForUpload(photoUri, photoOriginalWidth);
+        const fileResponse = await fetch(compressed.uri);
         const blob = await fileResponse.blob();
+        console.log(`[photo] compressed ${compressed.width}x${compressed.height}, uploading ${Math.round(blob.size / 1024)}KB`);
         const uploadResponse = await fetch(`${API_BASE}/api/storage/uploads/photo`, {
           method: "POST",
           headers: {
@@ -273,6 +283,7 @@ export default function ReportIssueScreen() {
                 setDescription("");
                 setAssignedTo("");
                 setPhotoUri(null);
+                setPhotoOriginalWidth(0);
                 setSubmitted(false);
               }}
               activeOpacity={0.8}
@@ -457,7 +468,7 @@ export default function ReportIssueScreen() {
                   <Image source={{ uri: photoUri }} style={styles.photoPreview} />
                   <TouchableOpacity
                     style={styles.removePhotoBtn}
-                    onPress={() => setPhotoUri(null)}
+                    onPress={() => { setPhotoUri(null); setPhotoOriginalWidth(0); }}
                   >
                     <Feather name="x-circle" size={22} color={Colors.accent} />
                   </TouchableOpacity>
