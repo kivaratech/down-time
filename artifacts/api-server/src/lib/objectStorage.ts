@@ -8,6 +8,7 @@ import {
   getObjectAclPolicy,
   setObjectAclPolicy,
 } from "./objectAcl";
+import { logger } from "./logger";
 
 function createStorageClient(): Storage {
   const keyJson = process.env.GCS_SERVICE_ACCOUNT_JSON;
@@ -31,6 +32,63 @@ function createStorageClient(): Storage {
 }
 
 export const objectStorageClient = createStorageClient();
+
+/**
+ * Resolve the GCS bucket name from env vars.
+ *
+ * Primary:  GCS_BUCKET_NAME — just the bucket name, e.g. "downtime-77b0a.appspot.com"
+ *           Firebase Storage buckets end in .appspot.com, NOT .firebasestorage.app
+ * Fallback: PRIVATE_OBJECT_DIR — legacy path-style var, e.g. "/downtime-77b0a.appspot.com"
+ *           The first path segment is used as the bucket name.
+ */
+function getGcsBucketName(): string {
+  const explicit = process.env.GCS_BUCKET_NAME?.trim();
+  if (explicit) return explicit;
+
+  const dir = process.env.PRIVATE_OBJECT_DIR?.trim();
+  if (dir) {
+    const normalized = dir.startsWith("/") ? dir : `/${dir}`;
+    const bucket = normalized.split("/")[1];
+    if (bucket) return bucket;
+  }
+
+  throw new Error(
+    "[storage] GCS_BUCKET_NAME env var is not set. " +
+      "Set it to the GCS bucket name, e.g. GCS_BUCKET_NAME=downtime-77b0a.appspot.com\n" +
+      "  NOTE: Firebase Storage bucket names end in .appspot.com — NOT .firebasestorage.app\n" +
+      "  You can find the bucket name in the Firebase console under Storage."
+  );
+}
+
+/**
+ * Validate that the configured GCS bucket exists and is accessible.
+ * Call this at server startup so misconfigurations fail fast with a clear message.
+ */
+export async function validateStorageConfig(): Promise<void> {
+  const bucketName = getGcsBucketName();
+  logger.info({ bucketName }, "[storage] Configured GCS bucket");
+
+  try {
+    const [exists] = await objectStorageClient.bucket(bucketName).exists();
+    if (!exists) {
+      throw new Error(
+        `[storage] GCS bucket not found: "${bucketName}"\n` +
+          "  Check GCS_BUCKET_NAME — Firebase Storage bucket names end in .appspot.com, not .firebasestorage.app\n" +
+          "  Also verify GCS_SERVICE_ACCOUNT_JSON has Storage access to this bucket."
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Rethrow bucket-not-found errors verbatim; wrap permission/network errors
+    if (msg.startsWith("[storage] GCS bucket not found")) throw err;
+    throw new Error(
+      `[storage] Failed to verify GCS bucket "${bucketName}": ${msg}\n` +
+        "  Check GCS_SERVICE_ACCOUNT_JSON has the Storage Object Admin role on this bucket."
+    );
+  }
+
+  logger.info({ bucketName }, "[storage] GCS bucket verified OK");
+}
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -63,18 +121,8 @@ export class ObjectStorageService {
   }
 
   getPrivateObjectDir(): string {
-    const raw = process.env.PRIVATE_OBJECT_DIR || "";
-    if (!raw) {
-      throw new Error(
-        "[storage] PRIVATE_OBJECT_DIR not set. " +
-          "Set it to the GCS bucket name, e.g. /downtime-77b0a.firebasestorage.app"
-      );
-    }
-    // Normalize: always leading slash, never trailing slash.
-    // This ensures normalizeObjectEntityPath can match against url.pathname
-    // which always starts with /.
-    const dir = (raw.startsWith("/") ? raw : `/${raw}`).replace(/\/+$/, "");
-    return dir;
+    // Always returns "/<bucketName>" — objects are stored in the root of the bucket.
+    return `/${getGcsBucketName()}`;
   }
 
   async searchPublicObject(filePath: string): Promise<File | null> {
