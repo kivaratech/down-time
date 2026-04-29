@@ -61,7 +61,6 @@ export default function SupervisorReportScreen() {
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoSize, setPhotoSize] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
 
   const { data: restaurants, isLoading: restaurantsLoading } = useListRestaurants();
@@ -172,43 +171,34 @@ export default function SupervisorReportScreen() {
   async function handleTakePhoto() {
     await Haptics.selectionAsync();
     if (Platform.OS === "web") {
-      console.log("[photo] supervisor: web library picker");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
         allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoSize(asset.fileSize ?? 100000);
+        setPhotoUri(result.assets[0].uri);
       }
       return;
     }
     const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
     if (cameraResult.status === "granted") {
-      console.log("[photo] supervisor: camera");
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
         quality: 0.8,
         allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoSize(asset.fileSize ?? 100000);
+        setPhotoUri(result.assets[0].uri);
       }
     } else {
-      console.log("[photo] supervisor: library picker (camera denied)");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,
         allowsEditing: false,
       });
       if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoSize(asset.fileSize ?? 100000);
+        setPhotoUri(result.assets[0].uri);
       }
     }
   }
@@ -227,7 +217,6 @@ export default function SupervisorReportScreen() {
       try {
         const fileResponse = await fetch(photoUri);
         const blob = await fileResponse.blob();
-        console.log("[photo] supervisor blob size:", blob.size, "type:", blob.type);
         const uploadResponse = await fetch(`${API_BASE}/api/storage/uploads/photo`, {
           method: "POST",
           headers: {
@@ -236,15 +225,15 @@ export default function SupervisorReportScreen() {
           },
           body: blob,
         });
-        console.log("[photo] supervisor server upload status:", uploadResponse.status, uploadResponse.ok ? "ok" : "FAILED");
         if (!uploadResponse.ok) {
           throw new Error(`Server upload failed: ${uploadResponse.status}`);
         }
         const uploadData = await uploadResponse.json() as { objectPath: string };
         imageObjectPath = uploadData.objectPath;
-        console.log("[photo] supervisor imageObjectPath:", imageObjectPath);
       } catch (e) {
-        console.warn("[photo] supervisor upload failed:", e);
+        setIsUploading(false);
+        setError("Photo upload failed. Submit without the photo, or try again.");
+        return;
       } finally {
         setIsUploading(false);
       }
@@ -290,7 +279,6 @@ export default function SupervisorReportScreen() {
                 setDescription("");
                 setAssignedTo("");
                 setPhotoUri(null);
-                setPhotoSize(0);
                 setSubmitted(false);
               }}
               activeOpacity={0.8}
@@ -503,7 +491,7 @@ export default function SupervisorReportScreen() {
                   <Image source={{ uri: photoUri }} style={styles.photoPreview} />
                   <TouchableOpacity
                     style={styles.removePhotoBtn}
-                    onPress={() => { setPhotoUri(null); setPhotoSize(0); }}
+                    onPress={() => setPhotoUri(null)}
                   >
                     <Feather name="x-circle" size={22} color={Colors.accent} />
                   </TouchableOpacity>

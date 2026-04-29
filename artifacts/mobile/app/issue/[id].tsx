@@ -156,11 +156,6 @@ export default function IssueDetailScreen() {
     ? (isSignedUrl ? issue.imageUrl : `${API_BASE}/api/storage/objects/${issue.imageUrl}`)
     : null;
 
-  console.log("[issue-detail] id:", id, "hasImage:", !!issue.imageUrl, "isSignedUrl:", isSignedUrl, "hasToken:", !!token);
-  if (imageUri) {
-    console.log("[issue-detail] loading from:", isSignedUrl ? "GCS signed URL" : "proxy");
-  }
-
   const currentStatus = localStatus ?? (issue.status as IssueStatus);
   const statusStyle = STATUS_OPTIONS.find((s) => s.value === currentStatus) ?? STATUS_OPTIONS[0];
 
@@ -263,10 +258,7 @@ export default function IssueDetailScreen() {
                 }}
                 style={styles.issueImage}
                 resizeMode="cover"
-                onError={(e) => {
-                  console.log("[issue-detail] image load error:", e.nativeEvent.error);
-                  setImageError(true);
-                }}
+                onError={() => setImageError(true)}
               />
             )
           )}

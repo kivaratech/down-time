@@ -211,7 +211,7 @@ export class ObjectStorageService {
     const { bucketName } = parseObjectPath(fullPath);
     const file = objectStorageClient.bucket(bucketName).file(objectName);
     await file.save(buffer, { metadata: { contentType: "image/jpeg" } });
-    console.log("[storage] uploadPhotoBuffer: saved", objectName, "to", bucketName, "bytes:", buffer.length);
+    logger.info({ objectName, bucketName, bytes: buffer.length }, "[storage] photo uploaded");
     return objectName;
   }
 
@@ -220,11 +220,10 @@ export class ObjectStorageService {
       const entityDir = this.getPrivateObjectDir();
       const fullPath = `${entityDir}/${imageUrl}`;
       const { bucketName, objectName } = parseObjectPath(fullPath);
-      console.log("[storage] getSignedReadUrl bucket:", bucketName, "object:", objectName);
       const file = objectStorageClient.bucket(bucketName).file(objectName);
       const [exists] = await file.exists();
       if (!exists) {
-        console.error("[storage] getSignedReadUrl: object does not exist in GCS:", objectName);
+        logger.warn({ objectName }, "[storage] object not found in GCS");
         return null;
       }
       const [url] = await file.getSignedUrl({
@@ -232,10 +231,9 @@ export class ObjectStorageService {
         expires: Date.now() + 10 * 60 * 1000,
         version: "v4",
       });
-      console.log("[storage] getSignedReadUrl: signed URL generated ok for:", objectName);
       return url;
     } catch (err) {
-      console.error("[storage] getSignedReadUrl failed for:", imageUrl, "-", (err as Error)?.message ?? String(err));
+      logger.error({ imageUrl, err }, "[storage] getSignedReadUrl failed");
       return null;
     }
   }
