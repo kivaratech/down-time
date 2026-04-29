@@ -16,11 +16,14 @@
       }
     },
     "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "EXPO_PUBLIC_DOMAIN": "workspaceapi-server-production-8421.up.railway.app"
+  }
+},
     "production": {
       "android": {
         "buildType": "app-bundle"
