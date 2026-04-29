@@ -240,6 +240,23 @@ export class ObjectStorageService {
     }
   }
 
+  // Skips the existence check — use for list endpoints where signing many objects
+  // in parallel would otherwise require N extra GCS network calls. The client
+  // handles a bad URL gracefully via onError.
+  async getSignedReadUrlFast(imageUrl: string): Promise<string | null> {
+    try {
+      const { bucketName, objectName } = parseObjectPath(`${this.getPrivateObjectDir()}/${imageUrl}`);
+      const [url] = await objectStorageClient.bucket(bucketName).file(objectName).getSignedUrl({
+        action: "read",
+        expires: Date.now() + 10 * 60 * 1000,
+        version: "v4",
+      });
+      return url;
+    } catch {
+      return null;
+    }
+  }
+
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;

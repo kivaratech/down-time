@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import type { Issue } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
@@ -60,6 +60,15 @@ export default function IssueCard({ issue, showRestaurant }: Props) {
   const statusStyle = getStatusStyle(issue.status);
   const priorityStyle = getPriorityStyle(issue.priority);
   const isUrgent = issue.priority === "urgent";
+  const [thumbError, setThumbError] = useState(false);
+
+  // List endpoint returns signed https:// URLs. Raw paths fall back to the
+  // authenticated proxy (will 401 silently — onError hides the thumbnail).
+  const thumbUri = issue.imageUrl
+    ? (issue.imageUrl.startsWith("https://")
+        ? issue.imageUrl
+        : `${API_BASE}/api/storage/objects/${issue.imageUrl}`)
+    : null;
 
   return (
     <Pressable
@@ -106,17 +115,19 @@ export default function IssueCard({ issue, showRestaurant }: Props) {
         </View>
       </View>
 
-      <Text style={styles.description} numberOfLines={2}>
-        {issue.description}
-      </Text>
-
-      {issue.imageUrl && (
-        <Image
-          source={{ uri: `${API_BASE}/api/storage/objects/${issue.imageUrl}` }}
-          style={styles.thumbnail}
-          resizeMode="cover"
-        />
-      )}
+      <View style={styles.descriptionRow}>
+        <Text style={[styles.description, thumbUri && !thumbError && styles.descriptionWithThumb]} numberOfLines={2}>
+          {issue.description}
+        </Text>
+        {thumbUri && !thumbError && (
+          <Image
+            source={{ uri: thumbUri }}
+            style={styles.thumbnail}
+            resizeMode="cover"
+            onError={() => setThumbError(true)}
+          />
+        )}
+      </View>
 
       <View style={styles.cardFooter}>
         <Text style={styles.age}>{getAgeLabel(issue.createdAt)}</Text>
@@ -213,18 +224,28 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     fontSize: 13,
   },
+  descriptionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+    gap: 10,
+  },
   description: {
+    flex: 1,
     fontSize: 14,
     color: Colors.textSecondary,
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
-    marginBottom: 8,
+  },
+  descriptionWithThumb: {
+    // Reserve vertical space so the row height matches the thumbnail
+    minHeight: 64,
   },
   thumbnail: {
-    width: "100%",
-    height: 160,
-    borderRadius: 10,
-    marginBottom: 10,
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    flexShrink: 0,
   },
   cardFooter: {
     flexDirection: "row",

@@ -35,6 +35,16 @@ const objectStorageService = new ObjectStorageService();
 
 const router: IRouter = Router();
 
+async function signIssueImageUrls<T extends { imageUrl: string | null }>(issues: T[]): Promise<T[]> {
+  return Promise.all(
+    issues.map(async (issue) => {
+      if (!issue.imageUrl) return issue;
+      const signedUrl = await objectStorageService.getSignedReadUrlFast(issue.imageUrl);
+      return signedUrl ? { ...issue, imageUrl: signedUrl } : issue;
+    })
+  );
+}
+
 const PRIORITY_ORDER = sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`;
 
 function buildIssueQuery() {
@@ -102,7 +112,7 @@ router.get("/restaurants/:id/issues", async (req, res) => {
     .where(and(...conditions))
     .orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt));
 
-  res.json(issues);
+  res.json(await signIssueImageUrls(issues));
 });
 
 // GET /api/issues (supervisor only)
@@ -173,7 +183,7 @@ router.get("/issues", async (req, res) => {
     ? await baseQuery.where(and(...conditions)).orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt))
     : await baseQuery.orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt));
 
-  res.json(issues);
+  res.json(await signIssueImageUrls(issues));
 });
 
 // POST /api/issues
