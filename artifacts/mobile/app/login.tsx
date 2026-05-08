@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { supervisorLogin } from "@workspace/api-client-react";
+import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -18,6 +19,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
 
 type Mode = "choose" | "supervisor";
 
@@ -193,6 +196,12 @@ export default function LoginScreen() {
           </View>
         )}
       </ScrollView>
+      <View
+        style={[styles.versionContainer, { paddingBottom: insets.bottom + 8 }]}
+        pointerEvents="none"
+      >
+        <Text style={styles.versionText}>v{APP_VERSION}</Text>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -379,5 +388,18 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
+  },
+  versionContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+  },
+  versionText: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+    letterSpacing: 0.3,
   },
 });
