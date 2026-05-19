@@ -10,7 +10,7 @@ web-build/
 expo-env.d.ts
 
 # Native
-ios/
+ios/*
 !ios/GoogleService-Info.plist
 android/
 *.orig.*
