@@ -81,6 +81,7 @@ export default function IssueDetailScreen() {
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFullImage, setShowFullImage] = useState(false);
   const [localStatus, setLocalStatus] = useState<IssueStatus | null>(null);
   const [localPriority, setLocalPriority] = useState<IssuePriority | undefined>(undefined);
   const [assignedToInput, setAssignedToInput] = useState<string | null>(null);
@@ -262,15 +263,20 @@ export default function IssueDetailScreen() {
                 <Text style={styles.imageErrorText}>Photo failed to load</Text>
               </View>
             ) : (
-              <Image
-                source={{
-                  uri: imageUri,
-                  headers: (!isSignedUrl && token) ? { Authorization: `Bearer ${token}` } : undefined,
-                }}
-                style={styles.issueImage}
-                resizeMode="cover"
-                onError={() => setImageError(true)}
-              />
+              <TouchableOpacity onPress={() => setShowFullImage(true)} activeOpacity={0.9}>
+                <Image
+                  source={{
+                    uri: imageUri,
+                    headers: (!isSignedUrl && token) ? { Authorization: `Bearer ${token}` } : undefined,
+                  }}
+                  style={styles.issueImage}
+                  resizeMode="cover"
+                  onError={() => setImageError(true)}
+                />
+                <View style={styles.imageExpandHint}>
+                  <Feather name="maximize-2" size={14} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
             )
           )}
 
@@ -510,6 +516,28 @@ export default function IssueDetailScreen() {
         </Pressable>
       </Modal>
 
+      {/* Full Screen Image Modal */}
+      <Modal
+        visible={showFullImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFullImage(false)}
+      >
+        <Pressable style={styles.fullImageOverlay} onPress={() => setShowFullImage(false)}>
+          <TouchableOpacity style={styles.fullImageCloseBtn} onPress={() => setShowFullImage(false)}>
+            <Feather name="x" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Image
+            source={{
+              uri: imageUri ?? "",
+              headers: (!isSignedUrl && token) ? { Authorization: `Bearer ${token}` } : undefined,
+            }}
+            style={styles.fullImage}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </Modal>
+
       {/* Delete Confirmation Modal */}
       <Modal
         visible={showDeleteConfirm}
@@ -655,6 +683,33 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 12,
     marginBottom: 16,
+  },
+  imageExpandHint: {
+    position: "absolute",
+    bottom: 24,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 8,
+    padding: 6,
+  },
+  fullImageOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullImageCloseBtn: {
+    position: "absolute",
+    top: 56,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+    padding: 10,
+  },
+  fullImage: {
+    width: "100%",
+    height: "80%",
   },
   imageErrorContainer: {
     width: "100%",
