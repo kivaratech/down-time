@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kivaratech.downtime",
-      "googleServicesFile": "./ios/GoogleService-Info.plist",
+      "googleServicesFile": "$GOOGLE_SERVICES_PLIST",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
