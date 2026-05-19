@@ -10,6 +10,7 @@ export * from "./comment";
 export * from "./createCommentRequest";
 export * from "./createIssueRequest";
 export * from "./createIssueRequestArea";
+export * from "./deleteIssue200";
 export * from "./equipmentArea";
 export * from "./equipmentAreaArea";
 export * from "./equipmentAreaCategory";

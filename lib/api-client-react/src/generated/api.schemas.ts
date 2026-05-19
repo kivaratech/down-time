@@ -283,6 +283,10 @@ export const ListIssuesPriority = {
   normal: "normal",
 } as const;
 
+export type DeleteIssue200 = {
+  success?: boolean;
+};
+
 export type GetEquipmentParams = {
   area?: GetEquipmentArea;
 };

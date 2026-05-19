@@ -20,6 +20,7 @@ import type {
   Comment,
   CreateCommentRequest,
   CreateIssueRequest,
+  DeleteIssue200,
   EquipmentCatalog,
   ErrorResponse,
   GetEquipmentParams,
@@ -1065,6 +1066,90 @@ export const useUpdateIssue = <
   TContext
 > => {
   return useMutation(getUpdateIssueMutationOptions(options));
+};
+
+/**
+ * @summary Delete a resolved issue (supervisor only)
+ */
+export const getDeleteIssueUrl = (id: number) => {
+  return `/api/issues/${id}`;
+};
+
+export const deleteIssue = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteIssue200> => {
+  return customFetch<DeleteIssue200>(getDeleteIssueUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteIssueMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteIssue>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteIssue>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteIssue"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteIssue>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteIssue(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteIssueMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteIssue>>
+>;
+
+export type DeleteIssueMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a resolved issue (supervisor only)
+ */
+export const useDeleteIssue = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteIssue>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteIssue>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteIssueMutationOptions(options));
 };
 
 /**

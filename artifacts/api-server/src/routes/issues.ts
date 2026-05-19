@@ -7,7 +7,7 @@ import {
   supervisorsTable,
   supervisorRestaurantsTable,
 } from "@workspace/db";
-import { eq, and, asc, lte, isNotNull, inArray, or, SQL } from "drizzle-orm";
+import { eq, and, asc, lte, gte, isNotNull, inArray, or, SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   extractToken,
@@ -162,6 +162,11 @@ router.get("/issues", async (req, res) => {
 
   if (status && status !== "all") {
     conditions.push(eq(issuesTable.status, status));
+    if (status === "resolved") {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      conditions.push(gte(issuesTable.resolvedAt, oneYearAgo));
+    }
   }
   if (category) {
     conditions.push(eq(issuesTable.category, category));
@@ -409,6 +414,39 @@ router.patch("/issues/:id", async (req, res) => {
 
   const [fullIssue] = await buildIssueQuery().where(eq(issuesTable.id, id));
   res.json(fullIssue);
+});
+
+// DELETE /api/issues/:id — supervisor only, resolved issues only
+router.delete("/issues/:id", async (req, res) => {
+  const params = GetIssueParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid issue ID" });
+    return;
+  }
+  const id = params.data.id;
+
+  const token = extractToken(req);
+  const supervisor = await getSupervisorFromToken(token);
+  if (!supervisor) {
+    res.status(403).json({ error: "Supervisor access required" });
+    return;
+  }
+
+  const [existing] = await db.select().from(issuesTable).where(eq(issuesTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  if (existing.status !== "resolved") {
+    res.status(400).json({ error: "Only resolved issues can be deleted" });
+    return;
+  }
+
+  await db.delete(commentsTable).where(eq(commentsTable.issueId, id));
+  await db.delete(issuesTable).where(eq(issuesTable.id, id));
+
+  res.json({ success: true });
 });
 
 // POST /api/issues/:id/comments

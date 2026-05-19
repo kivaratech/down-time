@@ -263,6 +263,17 @@ export const UpdateIssueResponse = zod.object({
 });
 
 /**
+ * @summary Delete a resolved issue (supervisor only)
+ */
+export const DeleteIssueParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteIssueResponse = zod.object({
+  success: zod.boolean().optional(),
+});
+
+/**
  * @summary Add a comment to an issue
  */
 export const AddCommentParams = zod.object({

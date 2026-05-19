@@ -3,6 +3,7 @@ import {
   useGetIssue,
   useUpdateIssue,
   useAddComment,
+  useDeleteIssue,
   getGetIssueQueryKey,
   getListIssuesQueryKey,
   getListRestaurantIssuesQueryKey,
@@ -79,6 +80,7 @@ export default function IssueDetailScreen() {
   const [addingComment, setAddingComment] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [localStatus, setLocalStatus] = useState<IssueStatus | null>(null);
   const [localPriority, setLocalPriority] = useState<IssuePriority | undefined>(undefined);
   const [assignedToInput, setAssignedToInput] = useState<string | null>(null);
@@ -129,6 +131,15 @@ export default function IssueDetailScreen() {
         }
         setEditingAssignment(false);
         setAssignedToInput(null);
+      },
+    },
+  });
+
+  const deleteMutation = useDeleteIssue({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListIssuesQueryKey() });
+        router.back();
       },
     },
   });
@@ -365,6 +376,18 @@ export default function IssueDetailScreen() {
           )}
         </View>
 
+        {/* Delete Issue — supervisor only, resolved only */}
+        {isSupervisor && currentStatus === "resolved" && (
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => setShowDeleteConfirm(true)}
+            activeOpacity={0.75}
+          >
+            <Feather name="trash-2" size={16} color={Colors.accent} />
+            <Text style={styles.deleteBtnText}>Delete Issue</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Comments */}
         <View style={styles.commentsCard}>
           <Text style={styles.sectionTitle}>
@@ -483,6 +506,47 @@ export default function IssueDetailScreen() {
                 </TouchableOpacity>
               );
             })}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
+          <View style={[styles.deleteConfirmSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.deleteConfirmIconWrap}>
+              <Feather name="trash-2" size={28} color={Colors.accent} />
+            </View>
+            <Text style={styles.deleteConfirmTitle}>Delete Issue?</Text>
+            <Text style={styles.deleteConfirmBody}>
+              This will permanently delete Issue #{issue.id} and all its comments. This cannot be undone.
+            </Text>
+            <TouchableOpacity
+              style={styles.deleteConfirmBtn}
+              onPress={async () => {
+                setShowDeleteConfirm(false);
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                deleteMutation.mutate({ id: Number(id) });
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.deleteConfirmBtnText}>Yes, Delete</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteConfirmCancelBtn}
+              onPress={() => setShowDeleteConfirm(false)}
+            >
+              <Text style={styles.deleteConfirmCancelText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
@@ -808,6 +872,80 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "500",
     fontFamily: "Inter_500Medium",
+  },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.accent + "40",
+    backgroundColor: Colors.accent + "10",
+  },
+  deleteBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.accent,
+  },
+  deleteConfirmSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    alignItems: "center",
+  },
+  deleteConfirmIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: Colors.accent + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  deleteConfirmTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  deleteConfirmBody: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  deleteConfirmBtn: {
+    width: "100%",
+    backgroundColor: Colors.accent,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  deleteConfirmBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+  },
+  deleteConfirmCancelBtn: {
+    width: "100%",
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  deleteConfirmCancelText: {
+    fontSize: 16,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
   },
   assignmentDisplayBtn: {
     flexDirection: "row",
