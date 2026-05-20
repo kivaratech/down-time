@@ -83,13 +83,17 @@ export default function SupervisorIssuesScreen() {
 
   // Apply filters passed in from the dashboard summary cards. Keyed on `ts`
   // so each navigation re-applies even when the same card is tapped again.
-  const params = useLocalSearchParams<{ status?: string; priority?: string; ts?: string }>();
+  const params = useLocalSearchParams<{ status?: string; priority?: string; restaurantId?: string; ts?: string }>();
   useEffect(() => {
     if (typeof params.status === "string") {
       setStatusFilter(params.status as StatusFilter);
     }
     if (typeof params.priority === "string") {
       setPriorityFilter(params.priority as PriorityFilter);
+    }
+    if (typeof params.restaurantId === "string") {
+      const id = Number(params.restaurantId);
+      setRestaurantFilter(params.restaurantId === "all" || !Number.isFinite(id) ? null : id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.ts]);

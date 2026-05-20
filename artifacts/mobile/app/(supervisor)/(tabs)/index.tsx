@@ -28,7 +28,17 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import IssueCard from "@/components/IssueCard";
 
-function RestaurantStatCard({ restaurant, issues }: { restaurant: Restaurant; issues: Issue[] }) {
+type IssueNavFilters = { status: string; priority: string; restaurantId: string | number };
+
+function RestaurantStatCard({
+  restaurant,
+  issues,
+  onStatPress,
+}: {
+  restaurant: Restaurant;
+  issues: Issue[];
+  onStatPress: (filters: IssueNavFilters) => void;
+}) {
   const openCount = issues.filter((i) => i.status === "open").length;
   const urgentCount = issues.filter((i) => i.priority === "urgent").length;
   const inProgressCount = issues.filter((i) => i.status === "in_progress").length;
@@ -52,20 +62,32 @@ function RestaurantStatCard({ restaurant, issues }: { restaurant: Restaurant; is
       </View>
 
       <View style={styles.statRow}>
-        <View style={styles.statItem}>
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={() => onStatPress({ status: "open", priority: "all", restaurantId: restaurant.id })}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.statValue, { color: Colors.openStatus }]}>{openCount}</Text>
           <Text style={styles.statLabel}>Open</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.statDivider} />
-        <View style={styles.statItem}>
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={() => onStatPress({ status: "in_progress", priority: "all", restaurantId: restaurant.id })}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.statValue, { color: Colors.inProgressStatus }]}>{inProgressCount}</Text>
           <Text style={styles.statLabel}>In Progress</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.statDivider} />
-        <View style={styles.statItem}>
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={() => onStatPress({ status: "all", priority: "all", restaurantId: restaurant.id })}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.statValue, { color: Colors.textSecondary }]}>{issues.length}</Text>
           <Text style={styles.statLabel}>Total</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {quickIssues.length > 0 ? (
@@ -125,11 +147,16 @@ export default function SupervisorDashboardScreen() {
     }
   };
 
-  const goToIssues = async (filters: { status?: string; priority?: string }) => {
+  const goToIssues = async (filters: IssueNavFilters) => {
     await Haptics.selectionAsync();
     router.push({
       pathname: "/(supervisor)/(tabs)/issues",
-      params: { ...filters, ts: String(Date.now()) },
+      params: {
+        status: filters.status,
+        priority: filters.priority,
+        restaurantId: String(filters.restaurantId),
+        ts: String(Date.now()),
+      },
     });
   };
 
@@ -200,7 +227,7 @@ export default function SupervisorDashboardScreen() {
       <View style={styles.summaryRow}>
         <TouchableOpacity
           style={[styles.summaryCard, { backgroundColor: Colors.urgentBg }]}
-          onPress={() => goToIssues({ status: "all", priority: "urgent" })}
+          onPress={() => goToIssues({ status: "all", priority: "urgent", restaurantId: "all" })}
           activeOpacity={0.75}
         >
           <Text style={[styles.summaryValue, { color: Colors.urgent }]}>{totalUrgent}</Text>
@@ -208,7 +235,7 @@ export default function SupervisorDashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.summaryCard, { backgroundColor: Colors.openStatusBg }]}
-          onPress={() => goToIssues({ status: "open", priority: "all" })}
+          onPress={() => goToIssues({ status: "open", priority: "all", restaurantId: "all" })}
           activeOpacity={0.75}
         >
           <Text style={[styles.summaryValue, { color: Colors.openStatus }]}>{totalOpen}</Text>
@@ -216,7 +243,7 @@ export default function SupervisorDashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.summaryCard, { backgroundColor: Colors.inProgressStatusBg }]}
-          onPress={() => goToIssues({ status: "in_progress", priority: "all" })}
+          onPress={() => goToIssues({ status: "in_progress", priority: "all", restaurantId: "all" })}
           activeOpacity={0.75}
         >
           <Text style={[styles.summaryValue, { color: Colors.inProgressStatus }]}>{totalInProgress}</Text>
@@ -240,6 +267,7 @@ export default function SupervisorDashboardScreen() {
             key={restaurant.id}
             restaurant={restaurant}
             issues={restaurantIssues}
+            onStatPress={goToIssues}
           />
         );
       })}
