@@ -1,3 +1,4 @@
+export * from "./organizations";
 export * from "./restaurants";
 export * from "./supervisors";
 export * from "./sessions";

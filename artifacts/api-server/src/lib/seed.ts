@@ -1,7 +1,11 @@
-import { db, supervisorsTable, restaurantsTable } from "@workspace/db";
+import { db, organizationsTable, supervisorsTable, restaurantsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
 import crypto from "crypto";
+
+const DEFAULT_ORG_NAME = "DownTime";
+const SUPER_ADMIN_USERNAME = "superadmin";
 
 const SEED_SUPERVISOR_TEMPLATES = [
   { username: "admin", name: "Admin", role: "admin" as const },
@@ -15,14 +19,34 @@ const SEED_RESTAURANTS = [
   { name: "Stockbridge", location: "Stockbridge Rd" },
 ];
 
+// Returns the default organization's id, creating it if it does not exist yet.
+async function ensureDefaultOrg(): Promise<number> {
+  const [existing] = await db
+    .select()
+    .from(organizationsTable)
+    .where(eq(organizationsTable.name, DEFAULT_ORG_NAME))
+    .limit(1);
+  if (existing) return existing.id;
+
+  const [created] = await db
+    .insert(organizationsTable)
+    .values({ name: DEFAULT_ORG_NAME })
+    .returning();
+  logger.info({ orgId: created.id, name: DEFAULT_ORG_NAME }, "Seeded default organization");
+  return created.id;
+}
+
 export async function seedDatabaseIfEmpty(): Promise<void> {
   try {
+    const orgId = await ensureDefaultOrg();
+
     const existingSupervisors = await db.select().from(supervisorsTable).limit(1);
     if (existingSupervisors.length === 0) {
       logger.info("Seeding supervisors...");
       for (const sup of SEED_SUPERVISOR_TEMPLATES) {
         const password = crypto.randomBytes(10).toString("base64url");
         await db.insert(supervisorsTable).values({
+          organizationId: orgId,
           username: sup.username,
           passwordHash: hashPassword(password),
           name: sup.name,
@@ -31,7 +55,20 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
         });
         logger.info({ username: sup.username, password }, "Seeded supervisor — save this password, it will not be shown again");
       }
-      logger.info({ count: SEED_SUPERVISOR_TEMPLATES.length }, "Supervisors seeded");
+
+      // Platform super_admin operates across all orgs, so it has no organization.
+      const superPassword = crypto.randomBytes(10).toString("base64url");
+      await db.insert(supervisorsTable).values({
+        organizationId: null,
+        username: SUPER_ADMIN_USERNAME,
+        passwordHash: hashPassword(superPassword),
+        name: "Platform Super Admin",
+        role: "super_admin",
+        isActive: true,
+      });
+      logger.info({ username: SUPER_ADMIN_USERNAME, password: superPassword }, "Seeded super_admin — save this password, it will not be shown again");
+
+      logger.info({ count: SEED_SUPERVISOR_TEMPLATES.length + 1 }, "Supervisors seeded");
     } else {
       logger.info("Supervisors already exist, skipping seed");
     }
@@ -40,7 +77,7 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
     if (existingRestaurants.length === 0) {
       logger.info("Seeding restaurants...");
       for (const rest of SEED_RESTAURANTS) {
-        await db.insert(restaurantsTable).values(rest);
+        await db.insert(restaurantsTable).values({ ...rest, organizationId: orgId });
       }
       logger.info({ count: SEED_RESTAURANTS.length }, "Restaurants seeded");
     } else {

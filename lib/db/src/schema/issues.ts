@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { organizationsTable } from "./organizations";
 import { restaurantsTable } from "./restaurants";
 
 export const areaEnum = pgEnum("area", [
@@ -33,6 +34,7 @@ export const issuesTable = pgTable(
   "issues",
   {
     id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").references(() => organizationsTable.id),
     restaurantId: integer("restaurant_id")
       .notNull()
       .references(() => restaurantsTable.id),
@@ -54,6 +56,8 @@ export const issuesTable = pgTable(
     index("issues_restaurant_id_idx").on(table.restaurantId),
     index("issues_status_idx").on(table.status),
     index("issues_restaurant_status_idx").on(table.restaurantId, table.status),
+    index("issues_organization_id_idx").on(table.organizationId),
+    index("issues_org_status_idx").on(table.organizationId, table.status),
   ],
 );
 

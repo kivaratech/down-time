@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed": "tsx ./src/seed.ts",
+    "backfill-organizations": "tsx ./src/backfill-organizations.ts",
     "reset-passwords": "tsx ./src/reset-passwords.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

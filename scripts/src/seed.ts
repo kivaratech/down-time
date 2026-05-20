@@ -4,6 +4,7 @@ import {
   deviceSessionsTable,
   equipmentItemsTable,
   issuesTable,
+  organizationsTable,
   pairingCodesTable,
   restaurantsTable,
   supervisorSessionsTable,
@@ -38,6 +39,8 @@ const SUPERVISORS = [
   { username: "admin", password: "admin123", name: "Alex Johnson", role: "admin" as const },
   { username: "supervisor", password: "pass123", name: "Maria Garcia", role: "supervisor" as const },
 ];
+
+const SUPER_ADMIN = { username: "superadmin", password: "super123", name: "Platform Super Admin" };
 
 const EQUIPMENT_SEEDS = [
   { area: "Front Counter", name: "French Fry Fryer", subItems: ["Vat 1", "Vat 2", "Vat 3", "Vat 4"], supportsCustomLabel: false, sortOrder: 0 },
@@ -105,11 +108,20 @@ async function seed() {
   await db.delete(supervisorsTable);
   await db.delete(restaurantsTable);
   await db.delete(equipmentItemsTable);
+  await db.delete(organizationsTable);
+
+  const [organization] = await db
+    .insert(organizationsTable)
+    .values({ name: "DownTime" })
+    .returning();
+  const orgId = organization.id;
+  console.log(`✅ Created default organization "DownTime" (id=${orgId})`);
 
   const restaurants = await db
     .insert(restaurantsTable)
     .values(
       RESTAURANTS.map((r) => ({
+        organizationId: orgId,
         name: r.name,
         location: r.location,
       }))
@@ -121,6 +133,7 @@ async function seed() {
     .insert(supervisorsTable)
     .values(
       SUPERVISORS.map((s) => ({
+        organizationId: orgId,
         username: s.username,
         passwordHash: hashPassword(s.password),
         name: s.name,
@@ -130,7 +143,16 @@ async function seed() {
     .returning();
   console.log(`✅ Created ${supervisors.length} supervisors`);
 
-  await db.insert(equipmentItemsTable).values(EQUIPMENT_SEEDS);
+  await db.insert(supervisorsTable).values({
+    organizationId: null,
+    username: SUPER_ADMIN.username,
+    passwordHash: hashPassword(SUPER_ADMIN.password),
+    name: SUPER_ADMIN.name,
+    role: "super_admin",
+  });
+  console.log("✅ Created platform super_admin");
+
+  await db.insert(equipmentItemsTable).values(EQUIPMENT_SEEDS.map((e) => ({ ...e, organizationId: orgId })));
   console.log(`✅ Created ${EQUIPMENT_SEEDS.length} equipment items`);
 
   const now = new Date();
@@ -278,7 +300,7 @@ async function seed() {
 
   const issues = await db
     .insert(issuesTable)
-    .values(issueSeeds)
+    .values(issueSeeds.map((s) => ({ ...s, organizationId: orgId })))
     .returning();
   console.log(`✅ Created ${issues.length} issues`);
 
@@ -320,8 +342,9 @@ async function seed() {
 
   console.log("✅ Seed complete!");
   console.log("\nTest accounts:");
-  console.log("Admin:      admin / admin123  (role: admin)");
-  console.log("Supervisor: supervisor / pass123  (role: supervisor)");
+  console.log("Super Admin: superadmin / super123  (role: super_admin, no org)");
+  console.log("Admin:       admin / admin123  (role: admin)");
+  console.log("Supervisor:  supervisor / pass123  (role: supervisor)");
   console.log("\nRestaurants (pair via admin pairing code):");
   RESTAURANTS.forEach((r) => console.log(`  ${r.name} — ${r.location}`));
   process.exit(0);
