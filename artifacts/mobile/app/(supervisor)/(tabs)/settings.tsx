@@ -35,6 +35,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { supervisor, logout } = useAuth();
   const isAdmin = supervisor?.role === "admin";
+  const backendDomain = process.env.EXPO_PUBLIC_DOMAIN ?? "Not configured";
+  const roleLabel = isAdmin ? "Admin" : "Supervisor";
   const [loggingOut, setLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -171,6 +173,18 @@ export default function SettingsScreen() {
             <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
           </TouchableOpacity>
         ))}
+
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Connected to</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>{backendDomain}</Text>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Signed in as</Text>
+            <Text style={styles.infoValue}>{roleLabel}</Text>
+          </View>
+        </View>
 
         <Text style={styles.versionText}>
           Version {Constants.expoConfig?.version ?? "1.0.0"}
@@ -476,6 +490,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: "#FFFFFF",
+  },
+  infoCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    gap: 12,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  infoValue: {
+    flex: 1,
+    textAlign: "right",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
   },
   versionText: {
     textAlign: "center",

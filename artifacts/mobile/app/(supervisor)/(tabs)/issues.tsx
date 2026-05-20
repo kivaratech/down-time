@@ -7,8 +7,8 @@ import {
   type ListIssuesPriority,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -81,6 +81,19 @@ export default function SupervisorIssuesScreen() {
   const [assignedToFilter, setAssignedToFilter] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
 
+  // Apply filters passed in from the dashboard summary cards. Keyed on `ts`
+  // so each navigation re-applies even when the same card is tapped again.
+  const params = useLocalSearchParams<{ status?: string; priority?: string; ts?: string }>();
+  useEffect(() => {
+    if (typeof params.status === "string") {
+      setStatusFilter(params.status as StatusFilter);
+    }
+    if (typeof params.priority === "string") {
+      setPriorityFilter(params.priority as PriorityFilter);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.ts]);
+
   const { data: restaurants } = useListRestaurants();
 
   const queryParams = {
@@ -142,7 +155,14 @@ export default function SupervisorIssuesScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPadding + 20 }]}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>All Issues</Text>
+          <View style={styles.headerTitleGroup}>
+            <Text style={styles.headerTitle}>All Issues</Text>
+            {activeFilterCount > 0 && (
+              <View style={styles.filterCountBadge}>
+                <Text style={styles.filterCountBadgeText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </View>
           {activeFilterCount > 0 && (
             <TouchableOpacity style={styles.clearBtn} onPress={clearAllFilters}>
               <Feather name="x" size={12} color={Colors.primary} />
@@ -431,12 +451,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
   },
+  headerTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerTitle: {
     fontSize: 26,
     fontWeight: "700",
     color: Colors.text,
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.3,
+  },
+  filterCountBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterCountBadgeText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
   },
   clearBtn: {
     flexDirection: "row",

@@ -32,6 +32,9 @@ function RestaurantStatCard({ restaurant, issues }: { restaurant: Restaurant; is
   const openCount = issues.filter((i) => i.status === "open").length;
   const urgentCount = issues.filter((i) => i.priority === "urgent").length;
   const inProgressCount = issues.filter((i) => i.status === "in_progress").length;
+  const quickIssues = issues
+    .filter((i) => i.priority === "urgent" || i.status === "open")
+    .slice(0, 2);
 
   return (
     <View style={styles.restaurantCard}>
@@ -65,36 +68,43 @@ function RestaurantStatCard({ restaurant, issues }: { restaurant: Restaurant; is
         </View>
       </View>
 
-      {issues.filter((i) => i.priority === "urgent" || i.status === "open").slice(0, 2).map((issue) => (
-        <TouchableOpacity
-          key={issue.id}
-          style={styles.quickIssueRow}
-          onPress={async () => {
-            await Haptics.selectionAsync();
-            router.push({ pathname: "/issue/[id]", params: { id: issue.id } });
-          }}
-          activeOpacity={0.72}
-        >
-          <View
-            style={[
-              styles.quickIssueDot,
-              {
-                backgroundColor: issue.priority === "urgent"
-                  ? Colors.urgent
-                  : issue.status === "open"
-                  ? Colors.openStatus
-                  : Colors.textTertiary,
-              },
-            ]}
-          />
-          <Text style={styles.quickIssueText} numberOfLines={1}>
-            {issue.equipmentType}
-            {issue.subItem ? ` · ${issue.subItem}` : ""}
-          </Text>
-          <Text style={styles.quickIssueArea}>{issue.area}</Text>
-          <Feather name="chevron-right" size={14} color={Colors.textTertiary} />
-        </TouchableOpacity>
-      ))}
+      {quickIssues.length > 0 ? (
+        quickIssues.map((issue) => (
+          <TouchableOpacity
+            key={issue.id}
+            style={styles.quickIssueRow}
+            onPress={async () => {
+              await Haptics.selectionAsync();
+              router.push({ pathname: "/issue/[id]", params: { id: issue.id } });
+            }}
+            activeOpacity={0.72}
+          >
+            <View
+              style={[
+                styles.quickIssueDot,
+                {
+                  backgroundColor: issue.priority === "urgent"
+                    ? Colors.urgent
+                    : issue.status === "open"
+                    ? Colors.openStatus
+                    : Colors.textTertiary,
+                },
+              ]}
+            />
+            <Text style={styles.quickIssueText} numberOfLines={1}>
+              {issue.equipmentType}
+              {issue.subItem ? ` · ${issue.subItem}` : ""}
+            </Text>
+            <Text style={styles.quickIssueArea}>{issue.area}</Text>
+            <Feather name="chevron-right" size={14} color={Colors.textTertiary} />
+          </TouchableOpacity>
+        ))
+      ) : (
+        <View style={styles.allClearRow}>
+          <Feather name="check-circle" size={14} color={Colors.success} />
+          <Text style={styles.allClearText}>All clear — no open issues</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -113,6 +123,14 @@ export default function SupervisorDashboardScreen() {
     } catch {
       setLoggingOut(false);
     }
+  };
+
+  const goToIssues = async (filters: { status?: string; priority?: string }) => {
+    await Haptics.selectionAsync();
+    router.push({
+      pathname: "/(supervisor)/(tabs)/issues",
+      params: { ...filters, ts: String(Date.now()) },
+    });
   };
 
   const { data: restaurants, isLoading: restaurantsLoading } = useQuery({
@@ -136,6 +154,7 @@ export default function SupervisorDashboardScreen() {
   const totalOpen = allIssues?.filter((i) => i.status === "open").length ?? 0;
   const totalUrgent = allIssues?.filter((i) => i.priority === "urgent").length ?? 0;
   const totalInProgress = allIssues?.filter((i) => i.status === "in_progress").length ?? 0;
+  const restaurantCount = restaurants?.length ?? 0;
 
   return (
     <View style={styles.container}>
@@ -155,9 +174,14 @@ export default function SupervisorDashboardScreen() {
       >
         {/* Supervisor Header */}
         <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.headerTextGroup}>
           <Text style={styles.greeting}>Dashboard</Text>
           <Text style={styles.supervisorName}>{supervisor?.name}</Text>
+          {!isLoading && (
+            <Text style={styles.headerSummary}>
+              {restaurantCount} {restaurantCount === 1 ? "restaurant" : "restaurants"} · {totalOpen} open {totalOpen === 1 ? "issue" : "issues"}
+            </Text>
+          )}
         </View>
         {Platform.OS !== "web" && (
           <TouchableOpacity
@@ -174,18 +198,30 @@ export default function SupervisorDashboardScreen() {
 
       {/* Summary Stats */}
       <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, { backgroundColor: Colors.urgentBg }]}>
+        <TouchableOpacity
+          style={[styles.summaryCard, { backgroundColor: Colors.urgentBg }]}
+          onPress={() => goToIssues({ status: "all", priority: "urgent" })}
+          activeOpacity={0.75}
+        >
           <Text style={[styles.summaryValue, { color: Colors.urgent }]}>{totalUrgent}</Text>
           <Text style={[styles.summaryLabel, { color: Colors.urgent }]}>Urgent</Text>
-        </View>
-        <View style={[styles.summaryCard, { backgroundColor: Colors.openStatusBg }]}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.summaryCard, { backgroundColor: Colors.openStatusBg }]}
+          onPress={() => goToIssues({ status: "open", priority: "all" })}
+          activeOpacity={0.75}
+        >
           <Text style={[styles.summaryValue, { color: Colors.openStatus }]}>{totalOpen}</Text>
           <Text style={[styles.summaryLabel, { color: Colors.openStatus }]}>Open</Text>
-        </View>
-        <View style={[styles.summaryCard, { backgroundColor: Colors.inProgressStatusBg }]}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.summaryCard, { backgroundColor: Colors.inProgressStatusBg }]}
+          onPress={() => goToIssues({ status: "in_progress", priority: "all" })}
+          activeOpacity={0.75}
+        >
           <Text style={[styles.summaryValue, { color: Colors.inProgressStatus }]}>{totalInProgress}</Text>
           <Text style={[styles.summaryLabel, { color: Colors.inProgressStatus }]}>In Progress</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Per-restaurant cards */}
@@ -207,6 +243,18 @@ export default function SupervisorDashboardScreen() {
           />
         );
       })}
+
+      {!isLoading && restaurantCount === 0 && (
+        <View style={styles.emptyState}>
+          <View style={styles.emptyStateIconBg}>
+            <Feather name="home" size={32} color={Colors.primary} />
+          </View>
+          <Text style={styles.emptyStateTitle}>No restaurants yet</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            Restaurants will appear here once they're added and paired.
+          </Text>
+        </View>
+      )}
       {/* Report Issue Button */}
       <View style={styles.fabContainer}>
         <TouchableOpacity
@@ -303,6 +351,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 4,
+  },
+  headerTextGroup: {
+    flex: 1,
+  },
+  headerSummary: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+    marginTop: 4,
   },
   greeting: {
     fontSize: 14,
@@ -441,6 +498,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textTertiary,
     fontFamily: "Inter_400Regular",
+  },
+  allClearRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  allClearText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  emptyStateIconBg: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: Colors.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.text,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
   },
   // Logout confirmation modal
   overlay: {
