@@ -536,7 +536,14 @@ components:
           type: string
         name:
           type: string
-      required: [id, username, name]
+        role:
+          type: string
+          enum: [supervisor, admin, super_admin]
+        organizationId:
+          type: integer
+          nullable: true
+          description: Null only for super_admin accounts.
+      required: [id, username, name, role, organizationId]
 
     MeResponse:
       type: object

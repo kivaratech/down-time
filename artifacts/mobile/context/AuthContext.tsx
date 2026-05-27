@@ -32,6 +32,8 @@ export type Supervisor = {
   // UI currently lands super_admins on the same screens as supervisors until
   // Phase 3 ships the dedicated super-admin route group.
   role: "admin" | "supervisor" | "super_admin";
+  // Null only for super_admin (cross-org). Every other role has a single org.
+  organizationId: number | null;
 };
 
 type AuthContextType = {

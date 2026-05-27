@@ -38,10 +38,22 @@ export interface SupervisorLoginRequest {
   password: string;
 }
 
+export type SupervisorRole =
+  (typeof SupervisorRole)[keyof typeof SupervisorRole];
+
+export const SupervisorRole = {
+  supervisor: "supervisor",
+  admin: "admin",
+  super_admin: "super_admin",
+} as const;
+
 export interface Supervisor {
   id: number;
   username: string;
   name: string;
+  role: SupervisorRole;
+  /** Null only for super_admin accounts. */
+  organizationId: number | null;
 }
 
 export interface SupervisorLoginResponse {

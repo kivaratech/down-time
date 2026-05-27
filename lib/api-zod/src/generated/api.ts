@@ -45,6 +45,11 @@ export const SupervisorLoginResponse = zod.object({
     id: zod.number(),
     username: zod.string(),
     name: zod.string(),
+    role: zod.enum(["supervisor", "admin", "super_admin"]),
+    organizationId: zod
+      .number()
+      .nullable()
+      .describe("Null only for super_admin accounts."),
   }),
 });
 
@@ -73,6 +78,11 @@ export const GetMeResponse = zod.object({
       id: zod.number(),
       username: zod.string(),
       name: zod.string(),
+      role: zod.enum(["supervisor", "admin", "super_admin"]),
+      organizationId: zod
+        .number()
+        .nullable()
+        .describe("Null only for super_admin accounts."),
     })
     .optional(),
 });

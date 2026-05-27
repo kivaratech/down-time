@@ -5,9 +5,13 @@
  * DownTime — Restaurant Equipment Issue Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { SupervisorRole } from "./supervisorRole";
 
 export interface Supervisor {
   id: number;
   username: string;
   name: string;
+  role: SupervisorRole;
+  /** Null only for super_admin accounts. */
+  organizationId: number | null;
 }

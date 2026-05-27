@@ -51,6 +51,7 @@ router.post("/auth/supervisor/login", async (req, res) => {
       username: supervisor.username,
       name: supervisor.name,
       role: supervisor.role,
+      organizationId: supervisor.organizationId,
     },
   });
 });
@@ -310,6 +311,7 @@ router.get("/auth/me", async (req, res) => {
         username: supervisor.username,
         name: supervisor.name,
         role: supervisor.role,
+        organizationId: supervisor.organizationId,
       },
     });
     return;

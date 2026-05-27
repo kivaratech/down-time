@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { supervisorLogin } from "@workspace/api-client-react";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -50,20 +50,18 @@ export default function LoginScreen() {
 
     try {
       const res = await supervisorLogin({ username: username.trim(), password });
-      // Preserve the true role from the server (including "super_admin").
-      // The openapi spec doesn't yet declare role on SupervisorLoginResponse,
-      // so we narrow it ourselves; Phase 3 will tighten the contract.
-      const rawRole = (res.supervisor as { role?: string }).role;
-      const role: "admin" | "supervisor" | "super_admin" =
-        rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
+      // The generated SupervisorRole enum is the source of truth for role
+      // values; AuthContext's narrower union mirrors it 1:1 by construction.
       await loginSupervisor(res.token, {
         id: res.supervisor.id,
         username: res.supervisor.username,
         name: res.supervisor.name,
-        role,
+        role: res.supervisor.role,
+        organizationId: res.supervisor.organizationId,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(supervisor)");
+      // Group route — typed-routes generator doesn't emit it. Cast through Href.
+      router.replace("/(supervisor)" as Href);
     } catch {
       setError("Invalid username or password.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

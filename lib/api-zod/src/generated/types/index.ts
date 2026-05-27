@@ -41,6 +41,7 @@ export * from "./successResponse";
 export * from "./supervisor";
 export * from "./supervisorLoginRequest";
 export * from "./supervisorLoginResponse";
+export * from "./supervisorRole";
 export * from "./updateIssueRequest";
 export * from "./updateIssueRequestPriority";
 export * from "./updateIssueRequestStatus";
