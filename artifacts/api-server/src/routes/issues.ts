@@ -7,12 +7,14 @@ import {
   supervisorsTable,
   supervisorRestaurantsTable,
 } from "@workspace/db";
-import { eq, and, asc, lte, gte, isNotNull, inArray, or, SQL } from "drizzle-orm";
+import { eq, and, asc, lte, gte, isNotNull, inArray, SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
-  extractToken,
-  getRestaurantFromToken,
-  getSupervisorFromToken,
+  requireAuth,
+  requireSupervisor,
+  requireOrgAdmin,
+  principalCanAccessRestaurant,
+  principalCanAccessIssue,
 } from "../lib/auth";
 import { getCategoryForArea } from "../lib/equipment";
 import { notifySupervisorsOfNewIssue } from "../lib/notifications";
@@ -52,6 +54,7 @@ function buildIssueQuery() {
     .select({
       id: issuesTable.id,
       restaurantId: issuesTable.restaurantId,
+      organizationId: issuesTable.organizationId,
       restaurantName: restaurantsTable.name,
       area: issuesTable.area,
       category: issuesTable.category,
@@ -87,21 +90,19 @@ router.get("/restaurants/:id/issues", async (req, res) => {
     return;
   }
 
-  const token = extractToken(req);
-  const restaurant = await getRestaurantFromToken(token);
-  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
-  if (restaurant && restaurant.id !== restaurantId) {
+  if (!(await principalCanAccessRestaurant(principal, restaurantId))) {
     res.status(403).json({ error: "Access denied" });
     return;
   }
 
   const conditions: SQL<unknown>[] = [eq(issuesTable.restaurantId, restaurantId)];
+  // Defence-in-depth: also constrain by the principal's org (super_admin bypasses).
+  if (principal.organizationId != null) {
+    conditions.push(eq(issuesTable.organizationId, principal.organizationId));
+  }
 
   const { status } = query.data;
   if (status && status !== "all") {
@@ -115,14 +116,10 @@ router.get("/restaurants/:id/issues", async (req, res) => {
   res.json(await signIssueImageUrls(issues));
 });
 
-// GET /api/issues (supervisor only)
+// GET /api/issues (supervisor / admin / super_admin)
 router.get("/issues", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
 
   const query = ListIssuesQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -133,12 +130,17 @@ router.get("/issues", async (req, res) => {
   const { restaurantId, status, category, priority, assignedTo, agingDays } = query.data;
   const conditions: SQL<unknown>[] = [];
 
-  // Non-admin supervisors only see issues from their assigned restaurants
-  if (supervisor.role !== "admin") {
+  // Org scoping. super_admin (organizationId === null) sees everything.
+  if (principal.organizationId != null) {
+    conditions.push(eq(issuesTable.organizationId, principal.organizationId));
+  }
+
+  // Non-admin, non-super_admin supervisors are further constrained to their assignments.
+  if (principal.role !== "admin" && principal.role !== "super_admin") {
     const assignments = await db
       .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
       .from(supervisorRestaurantsTable)
-      .where(eq(supervisorRestaurantsTable.supervisorId, supervisor.id));
+      .where(eq(supervisorRestaurantsTable.supervisorId, principal.supervisorId));
     const assignedIds = assignments.map((a) => a.restaurantId);
     if (assignedIds.length === 0) {
       res.json([]);
@@ -154,10 +156,8 @@ router.get("/issues", async (req, res) => {
     } else {
       conditions.push(inArray(issuesTable.restaurantId, assignedIds));
     }
-  } else {
-    if (restaurantId !== undefined) {
-      conditions.push(eq(issuesTable.restaurantId, restaurantId));
-    }
+  } else if (restaurantId !== undefined) {
+    conditions.push(eq(issuesTable.restaurantId, restaurantId));
   }
 
   if (status && status !== "all") {
@@ -193,14 +193,8 @@ router.get("/issues", async (req, res) => {
 
 // POST /api/issues
 router.post("/issues", async (req, res) => {
-  const token = extractToken(req);
-  const restaurant = await getRestaurantFromToken(token);
-  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
-
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
   const body = CreateIssueBody.safeParse(req.body);
   if (!body.success) {
@@ -210,8 +204,12 @@ router.post("/issues", async (req, res) => {
 
   const { restaurantId, area, equipmentType, subItem, customLabel, description, assignedTo, imageUrl } = body.data;
 
-  if (restaurant && restaurant.id !== restaurantId) {
-    res.status(403).json({ error: "Access denied: cannot create issues for another restaurant" });
+  // Single access check handles device-own-restaurant, supervisor-assignment,
+  // admin-same-org, and super_admin-bypass uniformly. Also rejects non-existent
+  // restaurantId for everyone except super_admin (which we accept since the
+  // target lookup below will 404 anyway).
+  if (!(await principalCanAccessRestaurant(principal, restaurantId))) {
+    res.status(403).json({ error: "Access denied" });
     return;
   }
 
@@ -261,8 +259,11 @@ router.post("/issues", async (req, res) => {
   req.log.info({ issueId: issue.id, savedImageUrl: imageUrl ?? null }, "issue created");
   res.status(201).json(fullIssue);
 
-  // Notify supervisors assigned to this restaurant and all admins — non-blocking
+  // Notify supervisors assigned to this restaurant and same-org admins — non-blocking.
+  // We scope admins to the issue's org so a future second-org admin doesn't
+  // receive notifications about another customer's issues.
   const log = req.log;
+  const issueOrgId = targetRestaurant.organizationId;
   Promise.all([
     db
       .select({ id: supervisorsTable.id, expoPushToken: supervisorsTable.expoPushToken })
@@ -283,6 +284,9 @@ router.post("/issues", async (req, res) => {
           eq(supervisorsTable.role, "admin"),
           isNotNull(supervisorsTable.expoPushToken),
           eq(supervisorsTable.isActive, true),
+          issueOrgId != null
+            ? eq(supervisorsTable.organizationId, issueOrgId)
+            : isNotNull(supervisorsTable.organizationId),
         ),
       ),
   ])
@@ -318,14 +322,8 @@ router.get("/issues/:id", async (req, res) => {
   }
   const id = params.data.id;
 
-  const token = extractToken(req);
-  const restaurant = await getRestaurantFromToken(token);
-  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
-
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
   const [issue] = await buildIssueQuery().where(eq(issuesTable.id, id));
   if (!issue) {
@@ -333,7 +331,7 @@ router.get("/issues/:id", async (req, res) => {
     return;
   }
 
-  if (restaurant && issue.restaurantId !== restaurant.id) {
+  if (!(await principalCanAccessIssue(principal, issue))) {
     res.status(403).json({ error: "Access denied" });
     return;
   }
@@ -369,14 +367,8 @@ router.patch("/issues/:id", async (req, res) => {
   }
   const id = params.data.id;
 
-  const token = extractToken(req);
-  const restaurant = await getRestaurantFromToken(token);
-  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
-
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
   const body = UpdateIssueBody.safeParse(req.body);
   if (!body.success) {
@@ -390,7 +382,7 @@ router.patch("/issues/:id", async (req, res) => {
     return;
   }
 
-  if (restaurant && existing.restaurantId !== restaurant.id) {
+  if (!(await principalCanAccessIssue(principal, existing))) {
     res.status(403).json({ error: "Access denied" });
     return;
   }
@@ -411,7 +403,8 @@ router.patch("/issues/:id", async (req, res) => {
   if (description !== undefined) {
     updates.description = description;
   }
-  if (priority !== undefined && supervisor) {
+  // Priority is a supervisor-side concern; devices can't set it.
+  if (priority !== undefined && principal.kind === "supervisor") {
     updates.priority = priority ?? null;
   }
 
@@ -439,16 +432,17 @@ router.delete("/issues/:id", async (req, res) => {
   }
   const id = params.data.id;
 
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(403).json({ error: "Supervisor access required" });
-    return;
-  }
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
 
   const [existing] = await db.select().from(issuesTable).where(eq(issuesTable.id, id)).limit(1);
   if (!existing) {
     res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  if (!(await principalCanAccessIssue(principal, existing))) {
+    res.status(403).json({ error: "Access denied" });
     return;
   }
 
@@ -472,14 +466,8 @@ router.post("/issues/:id/comments", async (req, res) => {
   }
   const issueId = params.data.id;
 
-  const token = extractToken(req);
-  const restaurant = await getRestaurantFromToken(token);
-  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
-
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
   const body = AddCommentBody.safeParse(req.body);
   if (!body.success) {
@@ -493,7 +481,7 @@ router.post("/issues/:id/comments", async (req, res) => {
     return;
   }
 
-  if (restaurant && issue.restaurantId !== restaurant.id) {
+  if (!(await principalCanAccessIssue(principal, issue))) {
     res.status(403).json({ error: "Access denied" });
     return;
   }
@@ -508,14 +496,10 @@ router.post("/issues/:id/comments", async (req, res) => {
 
 const DeleteCommentParams = z.object({ id: z.coerce.number().int().positive(), commentId: z.coerce.number().int().positive() });
 
-// DELETE /api/issues/:id/comments/:commentId — admin only
+// DELETE /api/issues/:id/comments/:commentId — admin only, same-org only
 router.delete("/issues/:id/comments/:commentId", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor || supervisor.role !== "admin") {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
+  const admin = requireOrgAdmin(req, res);
+  if (!admin) return;
 
   const params = DeleteCommentParams.safeParse(req.params);
   if (!params.success) {
@@ -523,6 +507,21 @@ router.delete("/issues/:id/comments/:commentId", async (req, res) => {
     return;
   }
   const { id: issueId, commentId } = params.data;
+
+  // Verify the parent issue is in the admin's org before deleting any comment.
+  const [issue] = await db
+    .select({ organizationId: issuesTable.organizationId })
+    .from(issuesTable)
+    .where(eq(issuesTable.id, issueId))
+    .limit(1);
+  if (!issue) {
+    res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+  if (issue.organizationId !== admin.organizationId) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
 
   const [deleted] = await db
     .delete(commentsTable)

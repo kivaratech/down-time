@@ -4,6 +4,7 @@ import {
   supervisorsTable,
   supervisorSessionsTable,
   deviceSessionsTable,
+  supervisorRestaurantsTable,
 } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { Request, Response } from "express";
@@ -147,4 +148,67 @@ export function requireSuperAdmin(req: Request, res: Response): SupervisorPrinci
     return null;
   }
   return p;
+}
+
+// ---------------------------------------------------------------------------
+// Access helpers (Phase 2c). These centralise the org+assignment checks used
+// by by-ID endpoints so a non-admin supervisor can't fetch arbitrary issues by
+// guessing an ID, and a future second-org admin can't reach across orgs.
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if the principal is allowed to act on the given restaurant.
+ * - device:     must be the device's own restaurant.
+ * - super_admin: yes (cross-org by design).
+ * - admin:      restaurant must belong to admin's organization.
+ * - supervisor: must have an explicit supervisor_restaurants assignment.
+ */
+export async function principalCanAccessRestaurant(
+  principal: Principal,
+  restaurantId: number,
+): Promise<boolean> {
+  if (principal.kind === "device") {
+    return principal.restaurantId === restaurantId;
+  }
+  if (principal.role === "super_admin") {
+    return true;
+  }
+  if (principal.role === "admin") {
+    if (principal.organizationId == null) return false;
+    const [r] = await db
+      .select({ organizationId: restaurantsTable.organizationId })
+      .from(restaurantsTable)
+      .where(eq(restaurantsTable.id, restaurantId))
+      .limit(1);
+    return r?.organizationId === principal.organizationId;
+  }
+  // non-admin supervisor: assignment required
+  const [a] = await db
+    .select({ supervisorId: supervisorRestaurantsTable.supervisorId })
+    .from(supervisorRestaurantsTable)
+    .where(
+      and(
+        eq(supervisorRestaurantsTable.supervisorId, principal.supervisorId),
+        eq(supervisorRestaurantsTable.restaurantId, restaurantId),
+      ),
+    )
+    .limit(1);
+  return !!a;
+}
+
+/**
+ * Issue-level access check. Requires org match (unless super_admin) AND
+ * restaurant access for the principal.
+ */
+export async function principalCanAccessIssue(
+  principal: Principal,
+  issue: { restaurantId: number; organizationId: number | null },
+): Promise<boolean> {
+  // Devices are never super_admin; supervisors with role "super_admin" bypass
+  // the org check (cross-org by design). Everyone else must match orgs.
+  const isSuperAdmin = principal.kind === "supervisor" && principal.role === "super_admin";
+  if (!isSuperAdmin && principal.organizationId != null) {
+    if (issue.organizationId !== principal.organizationId) return false;
+  }
+  return principalCanAccessRestaurant(principal, issue.restaurantId);
 }

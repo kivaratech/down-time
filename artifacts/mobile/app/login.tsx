@@ -50,11 +50,17 @@ export default function LoginScreen() {
 
     try {
       const res = await supervisorLogin({ username: username.trim(), password });
+      // Preserve the true role from the server (including "super_admin").
+      // The openapi spec doesn't yet declare role on SupervisorLoginResponse,
+      // so we narrow it ourselves; Phase 3 will tighten the contract.
+      const rawRole = (res.supervisor as { role?: string }).role;
+      const role: "admin" | "supervisor" | "super_admin" =
+        rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
       await loginSupervisor(res.token, {
         id: res.supervisor.id,
         username: res.supervisor.username,
         name: res.supervisor.name,
-        role: (res.supervisor as { role?: string }).role as "admin" | "supervisor" ?? "supervisor",
+        role,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(supervisor)");

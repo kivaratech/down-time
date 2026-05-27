@@ -28,7 +28,10 @@ export type Supervisor = {
   id: number;
   username: string;
   name: string;
-  role: "admin" | "supervisor";
+  // "super_admin" is the platform-level role with no organization. The mobile
+  // UI currently lands super_admins on the same screens as supervisors until
+  // Phase 3 ships the dedicated super-admin route group.
+  role: "admin" | "supervisor" | "super_admin";
 };
 
 type AuthContextType = {

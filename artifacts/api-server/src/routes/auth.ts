@@ -15,6 +15,7 @@ import {
   extractToken,
   getRestaurantFromToken,
   getSupervisorFromToken,
+  requireOrgAdmin,
 } from "../lib/auth";
 import { SupervisorLoginBody } from "@workspace/api-zod";
 import crypto from "crypto";
@@ -86,14 +87,10 @@ router.post("/auth/supervisor/push-token", async (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/auth/admin/pairing-code — admin generates a pairing code for a restaurant
+// POST /api/auth/admin/pairing-code — admin generates a pairing code for one of their org's restaurants
 router.post("/auth/admin/pairing-code", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor || supervisor.role !== "admin") {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
+  const admin = requireOrgAdmin(req, res);
+  if (!admin) return;
 
   const { restaurantId } = req.body;
   if (!restaurantId || typeof restaurantId !== "number") {
@@ -101,10 +98,17 @@ router.post("/auth/admin/pairing-code", async (req, res) => {
     return;
   }
 
+  // Restaurant must exist AND belong to admin's org. Cross-org or missing is
+  // a 404 — we don't tell the admin whether the ID exists in another org.
   const [restaurant] = await db
     .select()
     .from(restaurantsTable)
-    .where(eq(restaurantsTable.id, restaurantId))
+    .where(
+      and(
+        eq(restaurantsTable.id, restaurantId),
+        eq(restaurantsTable.organizationId, admin.organizationId),
+      ),
+    )
     .limit(1);
   if (!restaurant) {
     res.status(404).json({ error: "Restaurant not found" });
@@ -185,14 +189,10 @@ router.post("/auth/device/pair", async (req, res) => {
   });
 });
 
-// GET /api/auth/admin/device-sessions — list all device sessions (admin only)
+// GET /api/auth/admin/device-sessions — list device sessions for admin's org
 router.get("/auth/admin/device-sessions", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor || supervisor.role !== "admin") {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
+  const admin = requireOrgAdmin(req, res);
+  if (!admin) return;
 
   const sessions = await db
     .select({
@@ -204,23 +204,42 @@ router.get("/auth/admin/device-sessions", async (req, res) => {
     })
     .from(deviceSessionsTable)
     .innerJoin(restaurantsTable, eq(deviceSessionsTable.restaurantId, restaurantsTable.id))
-    .where(isNull(deviceSessionsTable.revokedAt));
+    .where(
+      and(
+        isNull(deviceSessionsTable.revokedAt),
+        eq(restaurantsTable.organizationId, admin.organizationId),
+      ),
+    );
 
   res.json(sessions);
 });
 
-// DELETE /api/auth/admin/device-sessions/:id — revoke a device session
+// DELETE /api/auth/admin/device-sessions/:id — revoke a device session (same org only)
 router.delete("/auth/admin/device-sessions/:id", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor || supervisor.role !== "admin") {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
+  const admin = requireOrgAdmin(req, res);
+  if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid session ID" });
+    return;
+  }
+
+  // Confirm the session's restaurant is in admin's org before revoking.
+  // Cross-org or missing returns 404 (no information leak).
+  const [target] = await db
+    .select({ id: deviceSessionsTable.id })
+    .from(deviceSessionsTable)
+    .innerJoin(restaurantsTable, eq(deviceSessionsTable.restaurantId, restaurantsTable.id))
+    .where(
+      and(
+        eq(deviceSessionsTable.id, id),
+        eq(restaurantsTable.organizationId, admin.organizationId),
+      ),
+    )
+    .limit(1);
+  if (!target) {
+    res.status(404).json({ error: "Session not found" });
     return;
   }
 

@@ -1,22 +1,18 @@
 import { Router, type IRouter } from "express";
 import { db, restaurantsTable, supervisorRestaurantsTable } from "@workspace/db";
-import { eq, asc, inArray } from "drizzle-orm";
+import { eq, and, asc, inArray, SQL } from "drizzle-orm";
 import {
-  extractToken,
-  getRestaurantFromToken,
-  getSupervisorFromToken,
+  requireAuth,
+  requireSupervisor,
+  principalCanAccessRestaurant,
 } from "../lib/auth";
 import { GetRestaurantParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 router.get("/restaurants", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(401).json({ error: "Supervisor access required" });
-    return;
-  }
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
 
   const cols = {
     id: restaurantsTable.id,
@@ -25,32 +21,31 @@ router.get("/restaurants", async (req, res) => {
     createdAt: restaurantsTable.createdAt,
   };
 
-  // Admins see all restaurants; non-admins only see their assigned ones
-  if (supervisor.role !== "admin") {
+  const conditions: SQL<unknown>[] = [];
+  // Org scoping — super_admin (organizationId === null) sees everything.
+  if (principal.organizationId != null) {
+    conditions.push(eq(restaurantsTable.organizationId, principal.organizationId));
+  }
+
+  // Non-admin, non-super_admin supervisors are further constrained to their assignments.
+  if (principal.role !== "admin" && principal.role !== "super_admin") {
     const assignments = await db
       .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
       .from(supervisorRestaurantsTable)
-      .where(eq(supervisorRestaurantsTable.supervisorId, supervisor.id));
+      .where(eq(supervisorRestaurantsTable.supervisorId, principal.supervisorId));
 
     const ids = assignments.map((a) => a.restaurantId);
     if (ids.length === 0) {
       res.json([]);
       return;
     }
-
-    const restaurants = await db
-      .select(cols)
-      .from(restaurantsTable)
-      .where(inArray(restaurantsTable.id, ids))
-      .orderBy(asc(restaurantsTable.name));
-    res.json(restaurants);
-    return;
+    conditions.push(inArray(restaurantsTable.id, ids));
   }
 
-  const restaurants = await db
-    .select(cols)
-    .from(restaurantsTable)
-    .orderBy(asc(restaurantsTable.name));
+  const baseQuery = db.select(cols).from(restaurantsTable);
+  const restaurants = conditions.length > 0
+    ? await baseQuery.where(and(...conditions)).orderBy(asc(restaurantsTable.name))
+    : await baseQuery.orderBy(asc(restaurantsTable.name));
   res.json(restaurants);
 });
 
@@ -62,31 +57,12 @@ router.get("/restaurants/:id", async (req, res) => {
   }
   const id = params.data.id;
 
-  const token = extractToken(req);
-  const restaurant = await getRestaurantFromToken(token);
-  const supervisor = !restaurant ? await getSupervisorFromToken(token) : null;
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
-  if (restaurant && restaurant.id !== id) {
+  if (!(await principalCanAccessRestaurant(principal, id))) {
     res.status(403).json({ error: "Access denied" });
     return;
-  }
-
-  // Non-admin supervisors can only access their assigned restaurants
-  if (supervisor && supervisor.role !== "admin") {
-    const assignments = await db
-      .select({ restaurantId: supervisorRestaurantsTable.restaurantId })
-      .from(supervisorRestaurantsTable)
-      .where(eq(supervisorRestaurantsTable.supervisorId, supervisor.id));
-    const assignedIds = assignments.map((a) => a.restaurantId);
-    if (!assignedIds.includes(id)) {
-      res.status(403).json({ error: "Access denied" });
-      return;
-    }
   }
 
   const [row] = await db

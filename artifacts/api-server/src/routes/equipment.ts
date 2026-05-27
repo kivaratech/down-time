@@ -1,27 +1,15 @@
 import { Router, type IRouter } from "express";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, SQL } from "drizzle-orm";
 import { db, equipmentItemsTable } from "@workspace/db";
-import { extractToken, getRestaurantFromToken, getSupervisorFromToken } from "../lib/auth";
+import { requireAuth, requireSupervisor } from "../lib/auth";
 import { GetEquipmentQueryParams } from "@workspace/api-zod";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
-async function requireAnyAuth(req: Parameters<typeof extractToken>[0]) {
-  const token = extractToken(req);
-  const [restaurant, supervisor] = await Promise.all([
-    getRestaurantFromToken(token),
-    getSupervisorFromToken(token),
-  ]);
-  return { restaurant, supervisor };
-}
-
 router.get("/equipment", async (req, res) => {
-  const { restaurant, supervisor } = await requireAnyAuth(req);
-  if (!restaurant && !supervisor) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+  const principal = requireAuth(req, res);
+  if (!principal) return;
 
   const query = GetEquipmentQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -29,11 +17,20 @@ router.get("/equipment", async (req, res) => {
     return;
   }
 
-  const rows = await db
-    .select()
-    .from(equipmentItemsTable)
-    .where(query.data.area ? eq(equipmentItemsTable.area, query.data.area) : undefined)
-    .orderBy(asc(equipmentItemsTable.sortOrder), asc(equipmentItemsTable.name));
+  const conditions: SQL<unknown>[] = [];
+  // Each org has its own catalog. super_admin bypasses (sees everything),
+  // but in practice they'd hit a Phase 3 endpoint scoped to a specific org.
+  if (principal.organizationId != null) {
+    conditions.push(eq(equipmentItemsTable.organizationId, principal.organizationId));
+  }
+  if (query.data.area) {
+    conditions.push(eq(equipmentItemsTable.area, query.data.area));
+  }
+
+  const baseQuery = db.select().from(equipmentItemsTable);
+  const rows = conditions.length > 0
+    ? await baseQuery.where(and(...conditions)).orderBy(asc(equipmentItemsTable.sortOrder), asc(equipmentItemsTable.name))
+    : await baseQuery.orderBy(asc(equipmentItemsTable.sortOrder), asc(equipmentItemsTable.name));
 
   const areaMap = new Map<string, { area: string; category: string; items: object[] }>();
   for (const row of rows) {
@@ -67,13 +64,9 @@ const UpdateEquipmentItemBody = z.object({
 const EquipmentItemIdParam = z.object({ id: z.coerce.number().int().positive() });
 
 router.post("/equipment/items", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(403).json({ error: "Supervisor access required" });
-    return;
-  }
-  if (supervisor.organizationId == null) {
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
+  if (principal.organizationId == null) {
     // super_admin has no org — equipment is per-org, so they'd use a
     // platform endpoint (Phase 3) to manage a specific org's catalog.
     res.status(400).json({ error: "Organization context required" });
@@ -86,10 +79,16 @@ router.post("/equipment/items", async (req, res) => {
     return;
   }
 
+  // Compute the next sort order within THIS org for the given area.
   const maxOrder = await db
     .select({ sortOrder: equipmentItemsTable.sortOrder })
     .from(equipmentItemsTable)
-    .where(eq(equipmentItemsTable.area, body.data.area))
+    .where(
+      and(
+        eq(equipmentItemsTable.organizationId, principal.organizationId),
+        eq(equipmentItemsTable.area, body.data.area),
+      ),
+    )
     .orderBy(asc(equipmentItemsTable.sortOrder));
 
   const nextOrder = maxOrder.length > 0
@@ -99,7 +98,7 @@ router.post("/equipment/items", async (req, res) => {
   const [created] = await db
     .insert(equipmentItemsTable)
     .values({
-      organizationId: supervisor.organizationId,
+      organizationId: principal.organizationId,
       area: body.data.area,
       name: body.data.name,
       subItems: body.data.subItems ?? [],
@@ -112,12 +111,8 @@ router.post("/equipment/items", async (req, res) => {
 });
 
 router.patch("/equipment/items/:id", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(403).json({ error: "Supervisor access required" });
-    return;
-  }
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
 
   const params = EquipmentItemIdParam.safeParse(req.params);
   if (!params.success) {
@@ -128,6 +123,27 @@ router.patch("/equipment/items/:id", async (req, res) => {
   const body = UpdateEquipmentItemBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: "Invalid request body", details: body.error.issues });
+    return;
+  }
+
+  // Verify the item exists in the principal's org before letting them edit.
+  // super_admin (org = null) currently can't edit through this route — they'd
+  // use a Phase 3 endpoint scoped to a specific org.
+  if (principal.organizationId == null) {
+    res.status(400).json({ error: "Organization context required" });
+    return;
+  }
+  const [existing] = await db
+    .select({ organizationId: equipmentItemsTable.organizationId })
+    .from(equipmentItemsTable)
+    .where(eq(equipmentItemsTable.id, params.data.id))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Equipment item not found" });
+    return;
+  }
+  if (existing.organizationId !== principal.organizationId) {
+    res.status(403).json({ error: "Access denied" });
     return;
   }
 
@@ -156,12 +172,8 @@ router.patch("/equipment/items/:id", async (req, res) => {
 });
 
 router.delete("/equipment/items/:id", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(403).json({ error: "Supervisor access required" });
-    return;
-  }
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
 
   const params = EquipmentItemIdParam.safeParse(req.params);
   if (!params.success) {
@@ -169,31 +181,44 @@ router.delete("/equipment/items/:id", async (req, res) => {
     return;
   }
 
-  const [deleted] = await db
-    .delete(equipmentItemsTable)
+  if (principal.organizationId == null) {
+    res.status(400).json({ error: "Organization context required" });
+    return;
+  }
+  const [existing] = await db
+    .select({ organizationId: equipmentItemsTable.organizationId })
+    .from(equipmentItemsTable)
     .where(eq(equipmentItemsTable.id, params.data.id))
-    .returning();
-
-  if (!deleted) {
+    .limit(1);
+  if (!existing) {
     res.status(404).json({ error: "Equipment item not found" });
     return;
   }
+  if (existing.organizationId !== principal.organizationId) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  await db
+    .delete(equipmentItemsTable)
+    .where(eq(equipmentItemsTable.id, params.data.id));
 
   res.status(204).send();
 });
 
 router.get("/equipment/items", async (req, res) => {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor) {
-    res.status(403).json({ error: "Supervisor access required" });
-    return;
+  const principal = requireSupervisor(req, res);
+  if (!principal) return;
+
+  const conditions: SQL<unknown>[] = [];
+  if (principal.organizationId != null) {
+    conditions.push(eq(equipmentItemsTable.organizationId, principal.organizationId));
   }
 
-  const rows = await db
-    .select()
-    .from(equipmentItemsTable)
-    .orderBy(asc(equipmentItemsTable.area), asc(equipmentItemsTable.sortOrder), asc(equipmentItemsTable.name));
+  const baseQuery = db.select().from(equipmentItemsTable);
+  const rows = conditions.length > 0
+    ? await baseQuery.where(and(...conditions)).orderBy(asc(equipmentItemsTable.area), asc(equipmentItemsTable.sortOrder), asc(equipmentItemsTable.name))
+    : await baseQuery.orderBy(asc(equipmentItemsTable.area), asc(equipmentItemsTable.sortOrder), asc(equipmentItemsTable.name));
 
   res.json(rows);
 });

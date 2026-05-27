@@ -1,46 +1,59 @@
 import { Router, type IRouter } from "express";
 import { db, supervisorsTable, supervisorSessionsTable, supervisorRestaurantsTable, restaurantsTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
-import { extractToken, getSupervisorFromToken, hashPassword } from "../lib/auth";
+import { and, eq, inArray } from "drizzle-orm";
+import { hashPassword, requireOrgAdmin } from "../lib/auth";
 import { z } from "zod";
 
 const router: IRouter = Router();
 
-async function requireAdmin(req: any, res: any) {
-  const token = extractToken(req);
-  const supervisor = await getSupervisorFromToken(token);
-  if (!supervisor || supervisor.role !== "admin") {
-    res.status(403).json({ error: "Admin access required" });
-    return null;
-  }
-  return supervisor;
+/**
+ * Returns the supervisor row if it exists AND belongs to the admin's org.
+ * Returning null lets the caller respond with 404 — cross-org users look
+ * identical to non-existent users (no information leak).
+ */
+async function findUserInAdminOrg(userId: number, adminOrgId: number) {
+  const [u] = await db
+    .select({ id: supervisorsTable.id, role: supervisorsTable.role })
+    .from(supervisorsTable)
+    .where(
+      and(
+        eq(supervisorsTable.id, userId),
+        eq(supervisorsTable.organizationId, adminOrgId),
+      ),
+    )
+    .limit(1);
+  return u ?? null;
 }
 
-// GET /api/admin/users — list all supervisors with their assigned restaurant IDs
+// GET /api/admin/users — list supervisors in the admin's org, with assignments
 router.get("/admin/users", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
-  const [users, assignments] = await Promise.all([
-    db
-      .select({
-        id: supervisorsTable.id,
-        username: supervisorsTable.username,
-        name: supervisorsTable.name,
-        email: supervisorsTable.email,
-        role: supervisorsTable.role,
-        isActive: supervisorsTable.isActive,
-        createdAt: supervisorsTable.createdAt,
-      })
-      .from(supervisorsTable)
-      .orderBy(supervisorsTable.createdAt),
-    db
-      .select({
-        supervisorId: supervisorRestaurantsTable.supervisorId,
-        restaurantId: supervisorRestaurantsTable.restaurantId,
-      })
-      .from(supervisorRestaurantsTable),
-  ]);
+  const users = await db
+    .select({
+      id: supervisorsTable.id,
+      username: supervisorsTable.username,
+      name: supervisorsTable.name,
+      email: supervisorsTable.email,
+      role: supervisorsTable.role,
+      isActive: supervisorsTable.isActive,
+      createdAt: supervisorsTable.createdAt,
+    })
+    .from(supervisorsTable)
+    .where(eq(supervisorsTable.organizationId, admin.organizationId))
+    .orderBy(supervisorsTable.createdAt);
+
+  const userIds = users.map((u) => u.id);
+  const assignments = userIds.length > 0
+    ? await db
+        .select({
+          supervisorId: supervisorRestaurantsTable.supervisorId,
+          restaurantId: supervisorRestaurantsTable.restaurantId,
+        })
+        .from(supervisorRestaurantsTable)
+        .where(inArray(supervisorRestaurantsTable.supervisorId, userIds))
+    : [];
 
   const assignmentMap: Record<number, number[]> = {};
   for (const a of assignments) {
@@ -60,17 +73,10 @@ const CreateUserBody = z.object({
   role: z.enum(["supervisor", "admin"]).default("supervisor"),
 });
 
-// POST /api/admin/users — create a new supervisor account
+// POST /api/admin/users — create a new supervisor account in the admin's org
 router.post("/admin/users", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
-  if (admin.organizationId == null) {
-    // Org admins always have an organization; a null here means stale data
-    // from before Phase 1 or a misconfigured account. Refuse rather than
-    // create an orphan user that would break Phase 2's NOT NULL.
-    res.status(400).json({ error: "Admin missing organization context" });
-    return;
-  }
 
   const body = CreateUserBody.safeParse(req.body);
   if (!body.success) {
@@ -80,6 +86,9 @@ router.post("/admin/users", async (req, res) => {
 
   const { username, password, name, email, role } = body.data;
 
+  // Username is currently globally unique at the DB level. Until Phase 2f
+  // swaps that to a composite (organization_id, username), keep this check
+  // global so we return a clean 409 instead of a constraint-violation 500.
   const [existing] = await db
     .select({ id: supervisorsTable.id })
     .from(supervisorsTable)
@@ -122,14 +131,20 @@ const UpdateUserBody = z.object({
   role: z.enum(["supervisor", "admin"]).optional(),
 });
 
-// PATCH /api/admin/users/:id — update name/email/username/role
+// PATCH /api/admin/users/:id — update name/email/username/role (same org only)
 router.patch("/admin/users/:id", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
 
@@ -188,7 +203,7 @@ router.patch("/admin/users/:id", async (req, res) => {
 
 // POST /api/admin/users/:id/deactivate — soft-deactivate the user and revoke sessions
 router.post("/admin/users/:id/deactivate", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
@@ -197,30 +212,30 @@ router.post("/admin/users/:id/deactivate", async (req, res) => {
     return;
   }
 
-  if (id === admin.id) {
+  if (id === admin.supervisorId) {
     res.status(400).json({ error: "You cannot deactivate your own account" });
     return;
   }
 
-  const [updated] = await db
-    .update(supervisorsTable)
-    .set({ isActive: false })
-    .where(eq(supervisorsTable.id, id))
-    .returning({ id: supervisorsTable.id });
-
-  if (!updated) {
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
     res.status(404).json({ error: "User not found" });
     return;
   }
+
+  await db
+    .update(supervisorsTable)
+    .set({ isActive: false })
+    .where(eq(supervisorsTable.id, id));
 
   await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
 
   res.json({ success: true });
 });
 
-// POST /api/admin/users/:id/activate — re-enable a deactivated supervisor
+// POST /api/admin/users/:id/activate — re-enable a deactivated supervisor (same org)
 router.post("/admin/users/:id/activate", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
@@ -229,16 +244,16 @@ router.post("/admin/users/:id/activate", async (req, res) => {
     return;
   }
 
-  const [updated] = await db
-    .update(supervisorsTable)
-    .set({ isActive: true })
-    .where(eq(supervisorsTable.id, id))
-    .returning({ id: supervisorsTable.id });
-
-  if (!updated) {
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
     res.status(404).json({ error: "User not found" });
     return;
   }
+
+  await db
+    .update(supervisorsTable)
+    .set({ isActive: true })
+    .where(eq(supervisorsTable.id, id));
 
   res.json({ success: true });
 });
@@ -247,14 +262,20 @@ const ResetPasswordBody = z.object({
   newPassword: z.string().min(6),
 });
 
-// POST /api/admin/users/:id/reset-password
+// POST /api/admin/users/:id/reset-password — same-org only
 router.post("/admin/users/:id/reset-password", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
 
@@ -266,30 +287,30 @@ router.post("/admin/users/:id/reset-password", async (req, res) => {
 
   const passwordHash = hashPassword(body.data.newPassword);
 
-  const [updated] = await db
+  await db
     .update(supervisorsTable)
     .set({ passwordHash })
-    .where(eq(supervisorsTable.id, id))
-    .returning({ id: supervisorsTable.id });
-
-  if (!updated) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+    .where(eq(supervisorsTable.id, id));
 
   await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
 
   res.json({ success: true });
 });
 
-// GET /api/admin/users/:id/restaurants — get assigned restaurant IDs
+// GET /api/admin/users/:id/restaurants — get assigned restaurant IDs (same org only)
 router.get("/admin/users/:id/restaurants", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
 
@@ -305,14 +326,20 @@ const UpdateRestaurantsBody = z.object({
   restaurantIds: z.array(z.number().int().positive()),
 });
 
-// PUT /api/admin/users/:id/restaurants — replace all restaurant assignments
+// PUT /api/admin/users/:id/restaurants — replace assignments (same org both sides)
 router.put("/admin/users/:id/restaurants", async (req, res) => {
-  const admin = await requireAdmin(req, res);
+  const admin = requireOrgAdmin(req, res);
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
 
@@ -324,19 +351,25 @@ router.put("/admin/users/:id/restaurants", async (req, res) => {
 
   const { restaurantIds } = body.data;
 
-  // Verify all restaurant IDs exist
+  // Verify every restaurant exists AND belongs to the admin's org. This blocks
+  // an admin from assigning their user to a restaurant in another org.
   if (restaurantIds.length > 0) {
     const found = await db
       .select({ id: restaurantsTable.id })
       .from(restaurantsTable)
-      .where(inArray(restaurantsTable.id, restaurantIds));
+      .where(
+        and(
+          inArray(restaurantsTable.id, restaurantIds),
+          eq(restaurantsTable.organizationId, admin.organizationId),
+        ),
+      );
     if (found.length !== restaurantIds.length) {
       res.status(400).json({ error: "One or more restaurant IDs are invalid" });
       return;
     }
   }
 
-  // Replace all assignments atomically
+  // Replace all assignments atomically (delete + insert).
   await db.delete(supervisorRestaurantsTable).where(eq(supervisorRestaurantsTable.supervisorId, id));
 
   if (restaurantIds.length > 0) {
