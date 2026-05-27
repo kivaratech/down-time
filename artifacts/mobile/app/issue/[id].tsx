@@ -11,7 +11,7 @@ import {
   type UpdateIssueRequestPriority,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
@@ -102,10 +102,12 @@ export default function IssueDetailScreen() {
         if (restaurant) {
           queryClient.invalidateQueries({ queryKey: getListRestaurantIssuesQueryKey(restaurant.id) });
         }
-        // Auto-navigate to dashboard when issue is marked as resolved
+        // Auto-navigate to dashboard when issue is marked as resolved.
+        // Group routes are valid hrefs at runtime but Expo Router's typed-routes
+        // generator omits them from the literal Href union — cast through.
         if (data.status === "resolved") {
           setTimeout(() => {
-            router.push(isSupervisor ? "/(supervisor)" : "/(restaurant)");
+            router.push((isSupervisor ? "/(supervisor)" : "/(restaurant)") as Href);
           }, 400);
         }
       },

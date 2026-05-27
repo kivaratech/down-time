@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -26,7 +26,7 @@ type SettingsOption = {
   icon: React.ComponentProps<typeof Feather>["name"];
   title: string;
   subtitle: string;
-  route?: string;
+  route?: Href;
   onPress?: () => void;
   adminOnly?: boolean;
 };

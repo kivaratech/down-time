@@ -123,6 +123,7 @@ export default function UsersScreen() {
       name: user.name,
       email: user.email ?? "",
       password: "",
+      confirmPassword: "",
       role: user.role as "supervisor" | "admin",
     });
     setFormError("");
