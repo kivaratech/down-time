@@ -5,7 +5,7 @@ export const equipmentItemsTable = pgTable(
   "equipment_items",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").references(() => organizationsTable.id),
+    organizationId: integer("organization_id").notNull().references(() => organizationsTable.id),
     area: text("area").notNull(),
     name: text("name").notNull(),
     subItems: jsonb("sub_items").$type<string[]>().default([]),

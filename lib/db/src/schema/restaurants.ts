@@ -7,7 +7,7 @@ export const restaurantsTable = pgTable(
   "restaurants",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").references(() => organizationsTable.id),
+    organizationId: integer("organization_id").notNull().references(() => organizationsTable.id),
     name: text("name").notNull(),
     location: text("location").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

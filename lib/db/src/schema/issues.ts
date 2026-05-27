@@ -34,7 +34,7 @@ export const issuesTable = pgTable(
   "issues",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").references(() => organizationsTable.id),
+    organizationId: integer("organization_id").notNull().references(() => organizationsTable.id),
     restaurantId: integer("restaurant_id")
       .notNull()
       .references(() => restaurantsTable.id),

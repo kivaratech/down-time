@@ -13,7 +13,9 @@ import {
 
 import crypto from "crypto";
 
-type InsertIssueWithTimestamps = Omit<typeof issuesTable.$inferInsert, "id">;
+// organizationId is injected via the .map at insert time, so the seed array
+// itself doesn't need to carry it (and shouldn't have to repeat it 12 times).
+type InsertIssueWithTimestamps = Omit<typeof issuesTable.$inferInsert, "id" | "organizationId">;
 type InsertComment = typeof commentsTable.$inferInsert;
 
 const PBKDF2_ITERATIONS = 100000;
