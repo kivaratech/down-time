@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { principalMiddleware } from "./middleware/principal";
 
 const app: Express = express();
 
@@ -34,6 +35,10 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Resolve Bearer token → req.principal for routes that opt in.
+// Fails open: missing/invalid token leaves principal undefined and route guards 401.
+app.use(principalMiddleware);
 
 app.use("/api", router);
 

@@ -73,6 +73,12 @@ router.post("/equipment/items", async (req, res) => {
     res.status(403).json({ error: "Supervisor access required" });
     return;
   }
+  if (supervisor.organizationId == null) {
+    // super_admin has no org — equipment is per-org, so they'd use a
+    // platform endpoint (Phase 3) to manage a specific org's catalog.
+    res.status(400).json({ error: "Organization context required" });
+    return;
+  }
 
   const body = CreateEquipmentItemBody.safeParse(req.body);
   if (!body.success) {
@@ -93,6 +99,7 @@ router.post("/equipment/items", async (req, res) => {
   const [created] = await db
     .insert(equipmentItemsTable)
     .values({
+      organizationId: supervisor.organizationId,
       area: body.data.area,
       name: body.data.name,
       subItems: body.data.subItems ?? [],

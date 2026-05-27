@@ -225,12 +225,26 @@ router.post("/issues", async (req, res) => {
     return;
   }
 
+  // Derive the issue's organization from its target restaurant — single source
+  // of truth, matches the Phase 1 backfill. Also validates the restaurant
+  // exists (the FK would otherwise produce a 500 on insert).
+  const [targetRestaurant] = await db
+    .select({ organizationId: restaurantsTable.organizationId })
+    .from(restaurantsTable)
+    .where(eq(restaurantsTable.id, restaurantId))
+    .limit(1);
+  if (!targetRestaurant) {
+    res.status(404).json({ error: "Restaurant not found" });
+    return;
+  }
+
   const category = getCategoryForArea(area);
 
   const [issue] = await db
     .insert(issuesTable)
     .values({
       restaurantId,
+      organizationId: targetRestaurant.organizationId,
       area,
       category,
       equipmentType,

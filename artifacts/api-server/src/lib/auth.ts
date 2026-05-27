@@ -6,8 +6,11 @@ import {
   deviceSessionsTable,
 } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
-import { Request } from "express";
+import { Request, Response } from "express";
 import crypto from "crypto";
+import type { Principal } from "../middleware/principal";
+
+type SupervisorPrincipal = Extract<Principal, { kind: "supervisor" }>;
 
 export function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -83,4 +86,65 @@ export function extractToken(req: Request): string {
   const auth = req.headers.authorization;
   if (auth?.startsWith("Bearer ")) return auth.slice(7);
   return "";
+}
+
+// ---------------------------------------------------------------------------
+// Principal-based guards (Phase 2). These read req.principal (set by
+// principalMiddleware) and respond with the appropriate 401/403/400. They
+// coexist with the legacy getRestaurantFromToken/getSupervisorFromToken helpers
+// during the gradual route migration in Phase 2c.
+// ---------------------------------------------------------------------------
+
+export function requireAuth(req: Request, res: Response): Principal | null {
+  if (!req.principal) {
+    res.status(401).json({ error: "Authentication required" });
+    return null;
+  }
+  return req.principal;
+}
+
+export function requireSupervisor(req: Request, res: Response): SupervisorPrincipal | null {
+  const p = req.principal;
+  if (!p) {
+    res.status(401).json({ error: "Authentication required" });
+    return null;
+  }
+  if (p.kind !== "supervisor") {
+    res.status(403).json({ error: "Supervisor access required" });
+    return null;
+  }
+  return p;
+}
+
+export function requireOrgAdmin(
+  req: Request,
+  res: Response,
+): (SupervisorPrincipal & { organizationId: number }) | null {
+  const p = req.principal;
+  if (!p) {
+    res.status(401).json({ error: "Authentication required" });
+    return null;
+  }
+  if (p.kind !== "supervisor" || p.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return null;
+  }
+  if (p.organizationId == null) {
+    res.status(400).json({ error: "Organization context required" });
+    return null;
+  }
+  return p as SupervisorPrincipal & { organizationId: number };
+}
+
+export function requireSuperAdmin(req: Request, res: Response): SupervisorPrincipal | null {
+  const p = req.principal;
+  if (!p) {
+    res.status(401).json({ error: "Authentication required" });
+    return null;
+  }
+  if (p.kind !== "supervisor" || p.role !== "super_admin") {
+    res.status(403).json({ error: "Super admin access required" });
+    return null;
+  }
+  return p;
 }

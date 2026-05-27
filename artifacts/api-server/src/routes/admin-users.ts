@@ -64,6 +64,13 @@ const CreateUserBody = z.object({
 router.post("/admin/users", async (req, res) => {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
+  if (admin.organizationId == null) {
+    // Org admins always have an organization; a null here means stale data
+    // from before Phase 1 or a misconfigured account. Refuse rather than
+    // create an orphan user that would break Phase 2's NOT NULL.
+    res.status(400).json({ error: "Admin missing organization context" });
+    return;
+  }
 
   const body = CreateUserBody.safeParse(req.body);
   if (!body.success) {
@@ -87,7 +94,14 @@ router.post("/admin/users", async (req, res) => {
   const passwordHash = hashPassword(password);
   const [newUser] = await db
     .insert(supervisorsTable)
-    .values({ username, passwordHash, name, email: email ?? null, role })
+    .values({
+      organizationId: admin.organizationId,
+      username,
+      passwordHash,
+      name,
+      email: email ?? null,
+      role,
+    })
     .returning({
       id: supervisorsTable.id,
       username: supervisorsTable.username,
