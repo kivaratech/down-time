@@ -86,13 +86,18 @@ router.post("/admin/users", async (req, res) => {
 
   const { username, password, name, email, role } = body.data;
 
-  // Username is currently globally unique at the DB level. Until Phase 2f
-  // swaps that to a composite (organization_id, username), keep this check
-  // global so we return a clean 409 instead of a constraint-violation 500.
+  // Per-org uniqueness — matches the DB's composite (organization_id, username)
+  // unique constraint added in Phase 2 PR-3. Two orgs can both have an
+  // "admin" / "supervisor" username without colliding.
   const [existing] = await db
     .select({ id: supervisorsTable.id })
     .from(supervisorsTable)
-    .where(eq(supervisorsTable.username, username))
+    .where(
+      and(
+        eq(supervisorsTable.username, username),
+        eq(supervisorsTable.organizationId, admin.organizationId),
+      ),
+    )
     .limit(1);
 
   if (existing) {
@@ -157,10 +162,16 @@ router.patch("/admin/users/:id", async (req, res) => {
   const { username, name, email, role } = body.data;
 
   if (username) {
+    // Per-org uniqueness check — matches PR-3's composite unique index.
     const [conflict] = await db
       .select({ id: supervisorsTable.id })
       .from(supervisorsTable)
-      .where(eq(supervisorsTable.username, username))
+      .where(
+        and(
+          eq(supervisorsTable.username, username),
+          eq(supervisorsTable.organizationId, admin.organizationId),
+        ),
+      )
       .limit(1);
     if (conflict && conflict.id !== id) {
       res.status(409).json({ error: "Username already taken" });
