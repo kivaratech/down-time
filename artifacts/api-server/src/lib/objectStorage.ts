@@ -161,10 +161,12 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
-  async getObjectEntityUploadURL(): Promise<string> {
+  async getObjectEntityUploadURL(orgId: number): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    // Phase 4: uploads land under <orgId>/uploads/<uuid> so the read endpoint
+    // can verify access without a DB lookup.
+    const fullPath = `${privateObjectDir}/${orgId}/uploads/${objectId}`;
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
     const file = objectStorageClient.bucket(bucketName).file(objectName);
@@ -203,10 +205,12 @@ export class ObjectStorageService {
     return objectFile;
   }
 
-  async uploadPhotoBuffer(buffer: Buffer): Promise<string> {
+  async uploadPhotoBuffer(buffer: Buffer, orgId: number): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
-    const objectName = `uploads/${objectId}`;
+    // Phase 4: uploads land under <orgId>/uploads/<uuid>. The read endpoint
+    // parses this prefix and rejects fetches from a different org's session.
+    const objectName = `${orgId}/uploads/${objectId}`;
     const fullPath = `${privateObjectDir}/${objectName}`;
     const { bucketName } = parseObjectPath(fullPath);
     const file = objectStorageClient.bucket(bucketName).file(objectName);
@@ -305,6 +309,26 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+}
+
+/**
+ * Extracts the organization id from a stored object path.
+ *
+ * - New (Phase 4) paths look like `<orgId>/uploads/<uuid>` and return the orgId.
+ * - Legacy flat paths `uploads/<uuid>` predate Phase 4 — they return null and
+ *   the caller must allow them through (we can't determine ownership from the
+ *   path alone). UUIDs are unguessable so the residual exposure is small;
+ *   over time these naturally age out as issues resolve.
+ */
+export function parseOrgFromObjectPath(objectName: string): number | null {
+  // Strip a leading slash if present so both "1/uploads/..." and "/1/uploads/..." work.
+  const stripped = objectName.startsWith("/") ? objectName.slice(1) : objectName;
+  const parts = stripped.split("/");
+  if (parts.length < 2) return null;
+  if (parts[0] === "uploads") return null; // legacy flat path
+  const n = Number(parts[0]);
+  if (Number.isInteger(n) && n > 0 && parts[1] === "uploads") return n;
+  return null;
 }
 
 function parseObjectPath(path: string): {
