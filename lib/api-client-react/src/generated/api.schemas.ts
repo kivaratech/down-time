@@ -243,6 +243,121 @@ export interface UploadUrlResponse {
   objectPath: string;
 }
 
+export interface Organization {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
+export type OrganizationSummary = Organization & {
+  restaurantCount: number;
+  adminCount: number;
+  supervisorCount: number;
+};
+
+export type OrgUserRole = (typeof OrgUserRole)[keyof typeof OrgUserRole];
+
+export const OrgUserRole = {
+  supervisor: "supervisor",
+  admin: "admin",
+} as const;
+
+export interface OrgUser {
+  id: number;
+  username: string;
+  name: string;
+  email: string | null;
+  role: OrgUserRole;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type OrganizationDetail = Organization & {
+  restaurants: Restaurant[];
+  admins: OrgUser[];
+  supervisors: OrgUser[];
+};
+
+export interface EquipmentTemplateSummary {
+  key: string;
+  label: string;
+  description: string;
+  itemCount: number;
+}
+
+/**
+ * Equipment template to seed. Defaults to "generic" when omitted.
+ */
+export type CreateOrganizationRequestTemplateKey =
+  (typeof CreateOrganizationRequestTemplateKey)[keyof typeof CreateOrganizationRequestTemplateKey];
+
+export const CreateOrganizationRequestTemplateKey = {
+  generic: "generic",
+  mcdonalds: "mcdonalds",
+} as const;
+
+export interface CreateOrganizationRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @minLength 2
+   * @maxLength 50
+   */
+  adminUsername: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  adminName: string;
+  adminEmail?: string | null;
+  /** Equipment template to seed. Defaults to "generic" when omitted. */
+  templateKey?: CreateOrganizationRequestTemplateKey;
+}
+
+export interface OrgAdminWithPassword {
+  id: number;
+  username: string;
+  name: string;
+  /** Plaintext password. Shown exactly once. */
+  password: string;
+}
+
+export interface CreateOrganizationResponse {
+  organization: Organization;
+  admin: OrgAdminWithPassword;
+}
+
+export interface CreateOrgAdminRequest {
+  /**
+   * @minLength 2
+   * @maxLength 50
+   */
+  username: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  email?: string | null;
+}
+
+export interface CreateOrgRestaurantRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  location: string;
+}
+
+export interface ResetPasswordResponse {
+  /** New plaintext password. Shown exactly once. */
+  password: string;
+}
+
 export type ListRestaurantIssuesParams = {
   status?: ListRestaurantIssuesStatus;
 };

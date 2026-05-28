@@ -21,6 +21,8 @@ tags:
     description: Equipment catalog
   - name: storage
     description: Object storage upload and serving endpoints
+  - name: super-admin
+    description: Platform super-admin operations for provisioning customer organizations
 paths:
   /healthz:
     get:
@@ -464,6 +466,251 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /super-admin/equipment-templates:
+    get:
+      operationId: listEquipmentTemplates
+      tags: [super-admin]
+      summary: List built-in equipment templates available for new organizations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EquipmentTemplateSummary"
+        "403":
+          description: Super admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-admin/organizations:
+    get:
+      operationId: listOrganizations
+      tags: [super-admin]
+      summary: List all organizations with summary stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationSummary"
+        "403":
+          description: Super admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createOrganization
+      tags: [super-admin]
+      summary: Create a new organization with seeded equipment and a first admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateOrganizationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Username already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-admin/organizations/{id}:
+    get:
+      operationId: getOrganization
+      tags: [super-admin]
+      summary: Get an organization with its restaurants, admins, and supervisors
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteOrganization
+      tags: [super-admin]
+      summary: Hard delete an organization and all of its data (cascaded in a transaction)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-admin/organizations/{id}/restaurants:
+    post:
+      operationId: createOrgRestaurant
+      tags: [super-admin]
+      summary: Add a restaurant to an organization
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrgRestaurantRequest"
+      responses:
+        "201":
+          description: Restaurant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Restaurant"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-admin/organizations/{id}/admins:
+    post:
+      operationId: createOrgAdmin
+      tags: [super-admin]
+      summary: Add an admin to an existing organization
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrgAdminRequest"
+      responses:
+        "201":
+          description: Admin created; plaintext password returned once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgAdminWithPassword"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Username already taken in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-admin/organizations/{id}/users/{userId}/reset-password:
+    post:
+      operationId: resetOrgUserPassword
+      tags: [super-admin]
+      summary: Generate a fresh random password for an org user (admin or supervisor) and revoke their sessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Password reset; new plaintext password returned once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordResponse"
+        "404":
+          description: User not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -774,3 +1021,164 @@ components:
           type: string
         objectPath:
           type: string
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, createdAt]
+
+    OrganizationSummary:
+      allOf:
+        - $ref: "#/components/schemas/Organization"
+        - type: object
+          properties:
+            restaurantCount:
+              type: integer
+            adminCount:
+              type: integer
+            supervisorCount:
+              type: integer
+          required: [restaurantCount, adminCount, supervisorCount]
+
+    OrgUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [supervisor, admin]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, username, name, email, role, isActive, createdAt]
+
+    OrganizationDetail:
+      allOf:
+        - $ref: "#/components/schemas/Organization"
+        - type: object
+          properties:
+            restaurants:
+              type: array
+              items:
+                $ref: "#/components/schemas/Restaurant"
+            admins:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrgUser"
+            supervisors:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrgUser"
+          required: [restaurants, admins, supervisors]
+
+    EquipmentTemplateSummary:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        itemCount:
+          type: integer
+      required: [key, label, description, itemCount]
+
+    CreateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        adminUsername:
+          type: string
+          minLength: 2
+          maxLength: 50
+        adminName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        adminEmail:
+          type: string
+          nullable: true
+        templateKey:
+          type: string
+          enum: [generic, mcdonalds]
+          description: Equipment template to seed. Defaults to "generic" when omitted.
+      required: [name, adminUsername, adminName]
+
+    OrgAdminWithPassword:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+          description: Plaintext password. Shown exactly once.
+      required: [id, username, name, password]
+
+    CreateOrganizationResponse:
+      type: object
+      properties:
+        organization:
+          $ref: "#/components/schemas/Organization"
+        admin:
+          $ref: "#/components/schemas/OrgAdminWithPassword"
+      required: [organization, admin]
+
+    CreateOrgAdminRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 2
+          maxLength: 50
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          nullable: true
+      required: [username, name]
+
+    CreateOrgRestaurantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        location:
+          type: string
+      required: [name, location]
+
+    ResetPasswordResponse:
+      type: object
+      properties:
+        password:
+          type: string
+          description: New plaintext password. Shown exactly once.
+      required: [password]

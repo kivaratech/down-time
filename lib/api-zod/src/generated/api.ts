@@ -341,3 +341,170 @@ export const RequestUploadUrlResponse = zod.object({
 export const GetStorageObjectParams = zod.object({
   objectPath: zod.coerce.string(),
 });
+
+/**
+ * @summary List built-in equipment templates available for new organizations
+ */
+export const ListEquipmentTemplatesResponseItem = zod.object({
+  key: zod.string(),
+  label: zod.string(),
+  description: zod.string(),
+  itemCount: zod.number(),
+});
+export const ListEquipmentTemplatesResponse = zod.array(
+  ListEquipmentTemplatesResponseItem,
+);
+
+/**
+ * @summary List all organizations with summary stats
+ */
+export const ListOrganizationsResponseItem = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    createdAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      restaurantCount: zod.number(),
+      adminCount: zod.number(),
+      supervisorCount: zod.number(),
+    }),
+  );
+export const ListOrganizationsResponse = zod.array(
+  ListOrganizationsResponseItem,
+);
+
+/**
+ * @summary Create a new organization with seeded equipment and a first admin
+ */
+export const createOrganizationBodyNameMax = 200;
+
+export const createOrganizationBodyAdminUsernameMin = 2;
+export const createOrganizationBodyAdminUsernameMax = 50;
+
+export const createOrganizationBodyAdminNameMax = 100;
+
+export const CreateOrganizationBody = zod.object({
+  name: zod.string().min(1).max(createOrganizationBodyNameMax),
+  adminUsername: zod
+    .string()
+    .min(createOrganizationBodyAdminUsernameMin)
+    .max(createOrganizationBodyAdminUsernameMax),
+  adminName: zod.string().min(1).max(createOrganizationBodyAdminNameMax),
+  adminEmail: zod.string().nullish(),
+  templateKey: zod
+    .enum(["generic", "mcdonalds"])
+    .optional()
+    .describe(
+      'Equipment template to seed. Defaults to \"generic\" when omitted.',
+    ),
+});
+
+/**
+ * @summary Get an organization with its restaurants, admins, and supervisors
+ */
+export const GetOrganizationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOrganizationResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    createdAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      restaurants: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          location: zod.string(),
+          createdAt: zod.date(),
+        }),
+      ),
+      admins: zod.array(
+        zod.object({
+          id: zod.number(),
+          username: zod.string(),
+          name: zod.string(),
+          email: zod.string().nullable(),
+          role: zod.enum(["supervisor", "admin"]),
+          isActive: zod.boolean(),
+          createdAt: zod.date(),
+        }),
+      ),
+      supervisors: zod.array(
+        zod.object({
+          id: zod.number(),
+          username: zod.string(),
+          name: zod.string(),
+          email: zod.string().nullable(),
+          role: zod.enum(["supervisor", "admin"]),
+          isActive: zod.boolean(),
+          createdAt: zod.date(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Hard delete an organization and all of its data (cascaded in a transaction)
+ */
+export const DeleteOrganizationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteOrganizationResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Add a restaurant to an organization
+ */
+export const CreateOrgRestaurantParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createOrgRestaurantBodyNameMax = 200;
+
+export const CreateOrgRestaurantBody = zod.object({
+  name: zod.string().min(1).max(createOrgRestaurantBodyNameMax),
+  location: zod.string(),
+});
+
+/**
+ * @summary Add an admin to an existing organization
+ */
+export const CreateOrgAdminParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createOrgAdminBodyUsernameMin = 2;
+export const createOrgAdminBodyUsernameMax = 50;
+
+export const createOrgAdminBodyNameMax = 100;
+
+export const CreateOrgAdminBody = zod.object({
+  username: zod
+    .string()
+    .min(createOrgAdminBodyUsernameMin)
+    .max(createOrgAdminBodyUsernameMax),
+  name: zod.string().min(1).max(createOrgAdminBodyNameMax),
+  email: zod.string().nullish(),
+});
+
+/**
+ * @summary Generate a fresh random password for an org user (admin or supervisor) and revoke their sessions
+ */
+export const ResetOrgUserPasswordParams = zod.object({
+  id: zod.coerce.number(),
+  userId: zod.coerce.number(),
+});
+
+export const ResetOrgUserPasswordResponse = zod.object({
+  password: zod
+    .string()
+    .describe("New plaintext password. Shown exactly once."),
+});
