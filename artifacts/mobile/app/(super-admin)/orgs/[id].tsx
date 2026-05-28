@@ -440,7 +440,16 @@ export default function OrganizationDetailScreen() {
       </FormModal>
 
       {/* Reset password confirmation modal */}
-      <Modal visible={!!resetTarget} transparent animationType="fade">
+      <Modal
+        visible={!!resetTarget}
+        transparent
+        animationType="fade"
+        // Android hardware back: cancel the confirmation (safe — nothing has
+        // happened yet) unless a reset is already in flight.
+        onRequestClose={() => {
+          if (!resetPasswordMutation.isPending) setResetTarget(null);
+        }}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
@@ -482,7 +491,18 @@ export default function OrganizationDetailScreen() {
       </Modal>
 
       {/* One-time password modal (shared for create admin / reset password) */}
-      <Modal visible={!!passwordModal} transparent animationType="fade">
+      <Modal
+        visible={!!passwordModal}
+        transparent
+        animationType="fade"
+        // Critical: the password is shown exactly once. Android hardware
+        // back MUST NOT dismiss this modal — losing it forces the operator
+        // to delete-and-recreate the user (or reset again). The operator
+        // must explicitly tap "I've saved the password" to dismiss.
+        onRequestClose={() => {
+          /* intentional no-op */
+        }}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
@@ -532,7 +552,16 @@ export default function OrganizationDetailScreen() {
       </Modal>
 
       {/* Delete org modal */}
-      <Modal visible={deleteVisible} transparent animationType="fade">
+      <Modal
+        visible={deleteVisible}
+        transparent
+        animationType="fade"
+        // Android hardware back: cancel (safe — delete hasn't fired yet)
+        // unless a delete is in flight.
+        onRequestClose={() => {
+          if (!deleteOrgMutation.isPending) setDeleteVisible(false);
+        }}
+      >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}

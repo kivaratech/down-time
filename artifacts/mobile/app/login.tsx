@@ -50,18 +50,29 @@ export default function LoginScreen() {
 
     try {
       const res = await supervisorLogin({ username: username.trim(), password });
-      // The generated SupervisorRole enum is the source of truth for role
-      // values; AuthContext's narrower union mirrors it 1:1 by construction.
+      // Narrow the server-returned role to a value the client knows how to
+      // handle. supervisors.role is a plain text column with no DB enum, so
+      // a rolled-forward server could return a string this client doesn't
+      // recognise. Fail-safe to the lowest-privilege "supervisor" rather
+      // than persisting an unknown string that downstream role gates would
+      // silently fall open against.
+      const rawRole = res.supervisor.role;
+      const role: "admin" | "supervisor" | "super_admin" =
+        rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
       await loginSupervisor(res.token, {
         id: res.supervisor.id,
         username: res.supervisor.username,
         name: res.supervisor.name,
-        role: res.supervisor.role,
+        role,
         organizationId: res.supervisor.organizationId,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Group route — typed-routes generator doesn't emit it. Cast through Href.
-      router.replace("/(supervisor)" as Href);
+      // Branch on role: the role-based redirect in app/index.tsx only runs
+      // when landing at "/", not after a router.replace. Without this branch
+      // super_admins would land on /(supervisor) which 403s their queries.
+      // Group routes aren't in the typed-routes Href union — cast through.
+      const target = role === "super_admin" ? "/(super-admin)" : "/(supervisor)";
+      router.replace(target as Href);
     } catch {
       setError("Invalid username or password.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

@@ -312,6 +312,33 @@ export class ObjectStorageService {
 }
 
 /**
+ * Delete every GCS object under the `<orgId>/` prefix. Used by the
+ * super-admin org-delete cascade so a deleted org doesn't leave orphaned
+ * blobs (storage cost) or photos that could be re-exposed if the numeric
+ * org id were ever recycled.
+ *
+ * Idempotent — if the prefix is empty, this is a no-op.
+ *
+ * Best-effort by design: the caller should log+swallow errors rather than
+ * fail the response, because the DB cascade has already committed by the
+ * time this runs and we don't want a GCS hiccup turning a successful delete
+ * into a misleading 500. Returns the number of object names that existed
+ * under the prefix (before deletion was attempted).
+ */
+export async function deleteObjectsByOrgPrefix(orgId: number): Promise<number> {
+  if (!Number.isInteger(orgId) || orgId <= 0) {
+    throw new Error(`deleteObjectsByOrgPrefix: invalid orgId ${orgId}`);
+  }
+  const bucketName = getGcsBucketName();
+  const bucket = objectStorageClient.bucket(bucketName);
+  const prefix = `${orgId}/`;
+  const [files] = await bucket.getFiles({ prefix });
+  if (files.length === 0) return 0;
+  await bucket.deleteFiles({ prefix });
+  return files.length;
+}
+
+/**
  * Extracts the organization id from a stored object path.
  *
  * - New (Phase 4) paths look like `<orgId>/uploads/<uuid>` and return the orgId.

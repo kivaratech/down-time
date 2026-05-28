@@ -79,20 +79,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (savedToken && savedType) {
         setToken(savedToken);
         setAuthTokenGetter(() => savedToken);
+        // Capture the /auth/me response so we can refresh the persisted
+        // user data with the server's current shape. Without this, a
+        // pre-Phase-3 stored Supervisor JSON (missing organizationId) would
+        // silently lie to the typecast and downstream code would see
+        // undefined where the type promises number | null. Same logic for
+        // restaurant in case the Restaurant shape ever changes.
+        let meResponse: Awaited<ReturnType<typeof getMe>>;
         try {
-          await getMe();
+          meResponse = await getMe();
         } catch {
           await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_TYPE_KEY, RESTAURANT_KEY, SUPERVISOR_KEY]);
           setToken(null);
           return;
         }
         setAuthType(savedType as AuthType);
-        if (savedType === "restaurant" && savedRestaurant) {
-          setRestaurant(JSON.parse(savedRestaurant));
+        if (savedType === "restaurant") {
+          if (meResponse.type === "restaurant" && meResponse.restaurant) {
+            const fresh = meResponse.restaurant as Restaurant;
+            await AsyncStorage.setItem(RESTAURANT_KEY, JSON.stringify(fresh));
+            setRestaurant(fresh);
+          } else if (savedRestaurant) {
+            setRestaurant(JSON.parse(savedRestaurant));
+          }
         }
-        if (savedType === "supervisor" && savedSupervisor) {
-          const sup = JSON.parse(savedSupervisor) as Supervisor;
-          setSupervisor(sup);
+        if (savedType === "supervisor") {
+          if (meResponse.type === "supervisor" && meResponse.supervisor) {
+            // Same role-narrowing safety net as login.tsx — if the server
+            // ever returns a role string the client doesn't know, fall back
+            // to lowest-privilege "supervisor".
+            const rawRole = meResponse.supervisor.role;
+            const role: "admin" | "supervisor" | "super_admin" =
+              rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
+            const fresh: Supervisor = {
+              id: meResponse.supervisor.id,
+              username: meResponse.supervisor.username,
+              name: meResponse.supervisor.name,
+              role,
+              organizationId: meResponse.supervisor.organizationId,
+            };
+            await AsyncStorage.setItem(SUPERVISOR_KEY, JSON.stringify(fresh));
+            setSupervisor(fresh);
+          } else if (savedSupervisor) {
+            setSupervisor(JSON.parse(savedSupervisor) as Supervisor);
+          }
           registerSupervisorPushToken(savedToken).catch(() => {});
         }
       }

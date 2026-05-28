@@ -6,6 +6,7 @@ import {
   issuesTable,
   organizationsTable,
   pairingCodesTable,
+  restaurantSessionsTable,
   restaurantsTable,
   supervisorSessionsTable,
   supervisorsTable,
@@ -55,6 +56,10 @@ async function seed() {
 
   await db.delete(supervisorSessionsTable);
   await db.delete(deviceSessionsTable);
+  // Legacy table whose restaurant_id FK has no ON DELETE CASCADE — without
+  // this wipe a re-seed against a DB with any restaurant_sessions row would
+  // FK-violate on the restaurants delete below.
+  await db.delete(restaurantSessionsTable);
   await db.delete(pairingCodesTable);
   await db.delete(commentsTable);
   await db.delete(issuesTable);

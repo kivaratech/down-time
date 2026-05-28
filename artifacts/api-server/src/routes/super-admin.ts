@@ -6,6 +6,7 @@ import {
   db,
   organizationsTable,
   restaurantsTable,
+  restaurantSessionsTable,
   supervisorsTable,
   supervisorSessionsTable,
   equipmentItemsTable,
@@ -21,6 +22,8 @@ import {
   type EquipmentTemplateKey,
 } from "@workspace/db/equipment-templates";
 import { hashPassword, requireSuperAdmin } from "../lib/auth";
+import { deleteObjectsByOrgPrefix } from "../lib/objectStorage";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -109,7 +112,10 @@ const CreateOrganizationBody = z.object({
   name: z.string().min(1).max(200),
   adminUsername: z.string().min(2).max(50),
   adminName: z.string().min(1).max(100),
-  adminEmail: z.string().email().optional(),
+  // .nullish() = .nullable().optional(). Accepts string | null | undefined.
+  // The openapi spec marks this field nullable:true and the mobile form
+  // sends `... || null` when blank — a plain .optional() would 400 on null.
+  adminEmail: z.string().email().nullish(),
   // Permissive zod + runtime check against EQUIPMENT_TEMPLATES so adding a
   // new template only requires updating the registry (and the openapi enum
   // for documentation/codegen). Otherwise we'd have to update three places.
@@ -321,6 +327,12 @@ router.delete("/super-admin/organizations/:id", async (req, res) => {
       await tx
         .delete(pairingCodesTable)
         .where(inArray(pairingCodesTable.restaurantId, restaurantIds));
+      // Legacy table — predates device_sessions; FK on restaurant_id has no
+      // ON DELETE CASCADE, so leftover rows would block the restaurants
+      // delete below and roll back the entire transaction.
+      await tx
+        .delete(restaurantSessionsTable)
+        .where(inArray(restaurantSessionsTable.restaurantId, restaurantIds));
     }
 
     // Mid-level rows owned directly by the organization.
@@ -332,6 +344,23 @@ router.delete("/super-admin/organizations/:id", async (req, res) => {
     // Org itself last.
     await tx.delete(organizationsTable).where(eq(organizationsTable.id, id));
   });
+
+  // After the DB cascade commits, clean up the org's GCS prefix so deleted
+  // tenants don't leave orphaned photo blobs (storage cost + the small risk
+  // of cross-tenant exposure if the numeric orgId is ever recycled).
+  // Best-effort: the DB delete already succeeded, so we never fail the
+  // response on a GCS hiccup — just log and move on.
+  try {
+    const photoCount = await deleteObjectsByOrgPrefix(id);
+    if (photoCount > 0) {
+      logger.info({ orgId: id, photoCount }, "deleted GCS photos for deleted org");
+    }
+  } catch (err) {
+    logger.warn(
+      { orgId: id, err },
+      "GCS cleanup failed after org delete; orphaned blobs may remain under <orgId>/",
+    );
+  }
 
   res.json({ success: true });
 });
@@ -396,7 +425,9 @@ router.post("/super-admin/organizations/:id/restaurants", async (req, res) => {
 const CreateOrgAdminBody = z.object({
   username: z.string().min(2).max(50),
   name: z.string().min(1).max(100),
-  email: z.string().email().optional(),
+  // .nullish() matches the openapi nullable:true field and the mobile form
+  // which sends `email: form.email.trim() || null` when blank.
+  email: z.string().email().nullish(),
 });
 
 router.post("/super-admin/organizations/:id/admins", async (req, res) => {
@@ -445,17 +476,34 @@ router.post("/super-admin/organizations/:id/admins", async (req, res) => {
   const password = generateRandomPassword();
   const passwordHash = hashPassword(password);
 
-  const [newAdmin] = await db
-    .insert(supervisorsTable)
-    .values({
-      organizationId: id,
-      username: body.data.username,
-      passwordHash,
-      name: body.data.name,
-      email: body.data.email ?? null,
-      role: "admin",
-    })
-    .returning();
+  let newAdmin: typeof supervisorsTable.$inferSelect;
+  try {
+    const [created] = await db
+      .insert(supervisorsTable)
+      .values({
+        organizationId: id,
+        username: body.data.username,
+        passwordHash,
+        name: body.data.name,
+        email: body.data.email ?? null,
+        role: "admin",
+      })
+      .returning();
+    newAdmin = created;
+  } catch (err: unknown) {
+    // 23505 = postgres unique_violation. The pre-check above is racy under
+    // concurrent identical requests — without this catch the second request
+    // crashes with a generic 500 instead of the friendlier 409.
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      (err as { code?: string }).code === "23505"
+    ) {
+      res.status(409).json({ error: "Username already taken in this organization" });
+      return;
+    }
+    throw err;
+  }
 
   res.status(201).json({
     id: newAdmin.id,
