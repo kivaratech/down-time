@@ -25,11 +25,12 @@ export default function SuperAdminLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: "Organizations" }} />
-      <Stack.Screen
-        name="orgs/new"
-        options={{ title: "New Organization", presentation: "modal" }}
-      />
-      <Stack.Screen name="orgs/[id]" options={{ title: "Organization" }} />
+      {/* orgs/ has its own nested _layout.tsx for the new/[id] sub-stack
+          (Expo Router Stack only manages direct children — declaring
+          "orgs/new" and "orgs/[id]" here triggers the "Too many screens
+          defined" warning). Hiding the parent header so the nested Stack
+          owns the title and back button. */}
+      <Stack.Screen name="orgs" options={{ headerShown: false }} />
     </Stack>
   );
 }
