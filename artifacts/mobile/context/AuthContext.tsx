@@ -8,7 +8,11 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { configurePushNotifications, registerSupervisorPushToken } from "../hooks/usePushNotifications";
+import {
+  clearPushTokenCache,
+  configurePushNotifications,
+  registerSupervisorPushToken,
+} from "../hooks/usePushNotifications";
 
 const TOKEN_KEY = "downtime_auth_token";
 const AUTH_TYPE_KEY = "downtime_auth_type";
@@ -90,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           meResponse = await getMe();
         } catch {
           await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_TYPE_KEY, RESTAURANT_KEY, SUPERVISOR_KEY]);
+          await clearPushTokenCache();
           setToken(null);
           return;
         }
@@ -181,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       RESTAURANT_KEY,
       SUPERVISOR_KEY,
     ]);
+    await clearPushTokenCache();
     setToken(null);
     setAuthType(null);
     setRestaurant(null);

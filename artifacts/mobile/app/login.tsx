@@ -6,15 +6,14 @@ import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -82,13 +81,30 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
+    // Outermost View owns the blue background and the version footer so the
+    // keyboard moving the form doesn't drag the footer up with it. The
+    // version stays anchored to the screen bottom and is hidden behind the
+    // keyboard when one is open.
+    <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) }]}>
+      <KeyboardAwareScrollView
+        // Replaces the KAV+ScrollView combo with one component that handles
+        // focused-input scrolling consistently on iOS AND Android — the
+        // built-in KeyboardAvoidingView is famously flaky on Android (none of
+        // "height"/"padding"/undefined behaviour reliably scrolls inputs
+        // above the keyboard, because the OS's adjustResize and KAV fight
+        // each other). This library takes a Keyboard.addListener +
+        // measureLayout approach that just works.
+        style={styles.kav}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        // extraScrollHeight sits between the focused input and the top of
+        // the keyboard. 80 instead of 20 because Android's autofill prompt
+        // ("Enable autofill on this password?") renders ~50-70px between
+        // the input and the keyboard for fields with secureTextEntry — at
+        // 20 the prompt covers the input. 80 leaves a small buffer even
+        // with the prompt showing.
+        extraScrollHeight={80}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -97,7 +113,6 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.appName}>DownTime</Text>
           <Text style={styles.tagline}>Restaurant Issue Tracker</Text>
-          <Text style={styles.orgName}>Gandar Management, Inc.</Text>
         </View>
 
         {mode === "choose" && (
@@ -161,6 +176,7 @@ export default function LoginScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="username"
                   returnKeyType="next"
                   onSubmitEditing={() => passwordRef.current?.focus()}
                   autoFocus
@@ -181,6 +197,7 @@ export default function LoginScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  autoComplete="current-password"
                   returnKeyType="done"
                   onSubmitEditing={handleSupervisorLogin}
                 />
@@ -210,14 +227,17 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
+      {/* Sibling of the scroll view — anchored to the outer View's bottom so
+          it doesn't move with the keyboard. pointerEvents="none" so it can't
+          intercept taps. */}
       <View
         style={[styles.versionContainer, { paddingBottom: insets.bottom + 8 }]}
         pointerEvents="none"
       >
         <Text style={styles.versionText}>v{APP_VERSION}</Text>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -225,6 +245,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.primary,
+  },
+  kav: {
+    flex: 1,
   },
   scroll: {
     flexGrow: 1,
@@ -251,21 +274,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.65)",
+    fontSize: 16,
+    color: "rgba(255,255,255,0.75)",
     fontFamily: "Inter_400Regular",
-    marginTop: 4,
-  },
-  orgName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.8)",
-    fontFamily: "Inter_700Bold",
-    marginTop: 8,
-    letterSpacing: 0.3,
+    marginTop: 6,
   },
   chooseContainer: {
-    flex: 1,
+    // flexGrow (not flex) so it fills bottom normally but the ScrollView
+    // can scroll when the keyboard shrinks the viewport. flex:1 would
+    // force-shrink the container, preventing scroll.
+    flexGrow: 1,
     backgroundColor: Colors.background,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -317,7 +335,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   formContainer: {
-    flex: 1,
+    // flexGrow (not flex) so the inputs can scroll above the keyboard —
+    // see chooseContainer note above.
+    flexGrow: 1,
     backgroundColor: Colors.background,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
