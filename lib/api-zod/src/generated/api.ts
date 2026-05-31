@@ -450,6 +450,25 @@ export const GetOrganizationResponse = zod
   );
 
 /**
+ * @summary Rename an organization
+ */
+export const RenameOrganizationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const renameOrganizationBodyNameMax = 200;
+
+export const RenameOrganizationBody = zod.object({
+  name: zod.string().min(1).max(renameOrganizationBodyNameMax),
+});
+
+export const RenameOrganizationResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  createdAt: zod.date(),
+});
+
+/**
  * @summary Hard delete an organization and all of its data (cascaded in a transaction)
  */
 export const DeleteOrganizationParams = zod.object({

@@ -262,6 +262,49 @@ router.get("/super-admin/organizations/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/super-admin/organizations/:id
+// Rename an organization. Restaurants/supervisors/issues follow automatically
+// because every FK to the org is on organizationId (numeric), not on the name.
+// ---------------------------------------------------------------------------
+const RenameOrganizationBody = z.object({
+  name: z.string().min(1).max(200),
+});
+
+router.patch("/super-admin/organizations/:id", async (req, res) => {
+  const admin = requireSuperAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid organization ID" });
+    return;
+  }
+
+  const body = RenameOrganizationBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request", details: body.error.flatten() });
+    return;
+  }
+
+  const [updated] = await db
+    .update(organizationsTable)
+    .set({ name: body.data.name.trim() })
+    .where(eq(organizationsTable.id, id))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    createdAt: updated.createdAt,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/super-admin/organizations/:id
 // Hard delete with application-level cascade in one transaction. The Phase 1+
 // FK constraints don't declare ON DELETE CASCADE — handling it here avoids a

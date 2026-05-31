@@ -46,6 +46,7 @@ export * from "./organizationDetail";
 export * from "./organizationSummary";
 export * from "./orgUser";
 export * from "./orgUserRole";
+export * from "./renameOrganizationRequest";
 export * from "./resetPasswordResponse";
 export * from "./restaurant";
 export * from "./restaurantLoginRequest";

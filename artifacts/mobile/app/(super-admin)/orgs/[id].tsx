@@ -4,6 +4,7 @@ import {
   useCreateOrgRestaurant,
   useDeleteOrganization,
   useGetOrganization,
+  useRenameOrganization,
   useResetOrgUserPassword,
   getGetOrganizationQueryKey,
   getListOrganizationsQueryKey,
@@ -65,6 +66,51 @@ export default function OrganizationDetailScreen() {
       enabled: !isNaN(orgId),
     },
   });
+
+  // ---- Rename org modal ------------------------------------------------------
+  const [renameVisible, setRenameVisible] = useState(false);
+  const [renameForm, setRenameForm] = useState("");
+  const [renameError, setRenameError] = useState("");
+
+  const renameOrgMutation = useRenameOrganization({
+    mutation: {
+      onSuccess: async () => {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        queryClient.invalidateQueries({ queryKey: getGetOrganizationQueryKey(orgId) });
+        queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
+        setRenameVisible(false);
+        setRenameError("");
+      },
+      onError: (err: unknown) => {
+        setRenameError(
+          (err as { data?: { error?: string } })?.data?.error ??
+            (err as { message?: string })?.message ??
+            "Failed to rename organization."
+        );
+      },
+    },
+  });
+
+  const openRename = () => {
+    setRenameForm(org?.name ?? "");
+    setRenameError("");
+    setRenameVisible(true);
+  };
+
+  const submitRename = () => {
+    setRenameError("");
+    const trimmed = renameForm.trim();
+    if (!trimmed) {
+      setRenameError("Name is required.");
+      return;
+    }
+    // No-op rename — just close the modal without a network round-trip.
+    if (trimmed === org?.name) {
+      setRenameVisible(false);
+      return;
+    }
+    renameOrgMutation.mutate({ id: orgId, data: { name: trimmed } });
+  };
 
   // ---- Restaurant add modal --------------------------------------------------
   const [addRestaurantVisible, setAddRestaurantVisible] = useState(false);
@@ -287,7 +333,15 @@ export default function OrganizationDetailScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         <View style={styles.metaCard}>
-          <Text style={styles.metaTitle}>{org.name}</Text>
+          <TouchableOpacity
+            style={styles.metaTitleRow}
+            onPress={openRename}
+            activeOpacity={0.6}
+            accessibilityLabel="Rename organization"
+          >
+            <Text style={styles.metaTitle}>{org.name}</Text>
+            <Feather name="edit-2" size={16} color={Colors.textSecondary} />
+          </TouchableOpacity>
           <Text style={styles.metaSub}>
             Created {formatCreatedAt(org.createdAt)} · ID {org.id}
           </Text>
@@ -352,6 +406,31 @@ export default function OrganizationDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Rename org modal */}
+      <FormModal
+        visible={renameVisible}
+        title="Rename Organization"
+        submitting={renameOrgMutation.isPending}
+        onSubmit={submitRename}
+        onCancel={() => setRenameVisible(false)}
+        error={renameError}
+        submitLabel="Save"
+      >
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Name *</Text>
+          <TextInput
+            style={styles.input}
+            value={renameForm}
+            onChangeText={(v) => { setRenameForm(v); setRenameError(""); }}
+            placeholder="Organization name"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="words"
+            autoFocus
+            editable={!renameOrgMutation.isPending}
+          />
+        </View>
+      </FormModal>
 
       {/* Add restaurant modal */}
       <FormModal
@@ -784,12 +863,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 14,
   },
+  metaTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 4,
+  },
   metaTitle: {
     fontSize: 22,
     fontWeight: "700",
     color: Colors.text,
     fontFamily: "Inter_700Bold",
-    marginBottom: 4,
   },
   metaSub: {
     fontSize: 13,

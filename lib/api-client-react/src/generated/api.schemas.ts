@@ -353,6 +353,14 @@ export interface CreateOrgRestaurantRequest {
   location: string;
 }
 
+export interface RenameOrganizationRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+}
+
 export interface ResetPasswordResponse {
   /** New plaintext password. Shown exactly once. */
   password: string;

@@ -36,8 +36,10 @@ import type {
   ListRestaurantIssuesParams,
   MeResponse,
   OrgAdminWithPassword,
+  Organization,
   OrganizationDetail,
   OrganizationSummary,
+  RenameOrganizationRequest,
   ResetPasswordResponse,
   Restaurant,
   RestaurantLoginRequest,
@@ -1844,6 +1846,94 @@ export function useGetOrganization<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Rename an organization
+ */
+export const getRenameOrganizationUrl = (id: number) => {
+  return `/api/super-admin/organizations/${id}`;
+};
+
+export const renameOrganization = async (
+  id: number,
+  renameOrganizationRequest: RenameOrganizationRequest,
+  options?: RequestInit,
+): Promise<Organization> => {
+  return customFetch<Organization>(getRenameOrganizationUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(renameOrganizationRequest),
+  });
+};
+
+export const getRenameOrganizationMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof renameOrganization>>,
+    TError,
+    { id: number; data: BodyType<RenameOrganizationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof renameOrganization>>,
+  TError,
+  { id: number; data: BodyType<RenameOrganizationRequest> },
+  TContext
+> => {
+  const mutationKey = ["renameOrganization"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof renameOrganization>>,
+    { id: number; data: BodyType<RenameOrganizationRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return renameOrganization(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RenameOrganizationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof renameOrganization>>
+>;
+export type RenameOrganizationMutationBody =
+  BodyType<RenameOrganizationRequest>;
+export type RenameOrganizationMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Rename an organization
+ */
+export const useRenameOrganization = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof renameOrganization>>,
+    TError,
+    { id: number; data: BodyType<RenameOrganizationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof renameOrganization>>,
+  TError,
+  { id: number; data: BodyType<RenameOrganizationRequest> },
+  TContext
+> => {
+  return useMutation(getRenameOrganizationMutationOptions(options));
+};
 
 /**
  * @summary Hard delete an organization and all of its data (cascaded in a transaction)
