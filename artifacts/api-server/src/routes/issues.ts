@@ -5,6 +5,7 @@ import {
   commentsTable,
   restaurantsTable,
   supervisorsTable,
+  supervisorDevicesTable,
   supervisorRestaurantsTable,
 } from "@workspace/db";
 import { eq, and, asc, lte, gte, isNotNull, inArray, SQL } from "drizzle-orm";
@@ -259,14 +260,23 @@ router.post("/issues", async (req, res) => {
   req.log.info({ issueId: issue.id, savedImageUrl: imageUrl ?? null }, "issue created");
   res.status(201).json(fullIssue);
 
-  // Notify supervisors assigned to this restaurant and same-org admins — non-blocking.
-  // We scope admins to the issue's org so a future second-org admin doesn't
-  // receive notifications about another customer's issues.
+  // Notify assigned supervisors AND same-org admins — non-blocking. Admins
+  // are scoped to the issue's org so a second-org admin doesn't receive
+  // notifications about another customer's issues.
+  //
+  // Each supervisor may have multiple devices (phone + tablet, etc.) — we
+  // fan out to all of their device tokens. The Map<supervisorId, Set<token>>
+  // structure dedupes both across the assigned/admin overlap (a supervisor
+  // who is also an admin of their org) AND across rows returned by the
+  // 1:many join.
   const log = req.log;
   const issueOrgId = targetRestaurant.organizationId;
   Promise.all([
     db
-      .select({ id: supervisorsTable.id, expoPushToken: supervisorsTable.expoPushToken })
+      .select({
+        supervisorId: supervisorsTable.id,
+        pushToken: supervisorDevicesTable.expoPushToken,
+      })
       .from(supervisorsTable)
       .innerJoin(
         supervisorRestaurantsTable,
@@ -275,14 +285,24 @@ router.post("/issues", async (req, res) => {
           eq(supervisorRestaurantsTable.restaurantId, restaurantId),
         ),
       )
-      .where(and(isNotNull(supervisorsTable.expoPushToken), eq(supervisorsTable.isActive, true))),
+      .innerJoin(
+        supervisorDevicesTable,
+        eq(supervisorDevicesTable.supervisorId, supervisorsTable.id),
+      )
+      .where(eq(supervisorsTable.isActive, true)),
     db
-      .select({ id: supervisorsTable.id, expoPushToken: supervisorsTable.expoPushToken })
+      .select({
+        supervisorId: supervisorsTable.id,
+        pushToken: supervisorDevicesTable.expoPushToken,
+      })
       .from(supervisorsTable)
+      .innerJoin(
+        supervisorDevicesTable,
+        eq(supervisorDevicesTable.supervisorId, supervisorsTable.id),
+      )
       .where(
         and(
           eq(supervisorsTable.role, "admin"),
-          isNotNull(supervisorsTable.expoPushToken),
           eq(supervisorsTable.isActive, true),
           issueOrgId != null
             ? eq(supervisorsTable.organizationId, issueOrgId)
@@ -291,14 +311,15 @@ router.post("/issues", async (req, res) => {
       ),
   ])
     .then(([assigned, admins]) => {
-      const bySupervisor = new Map<number, string>();
-      for (const s of [...assigned, ...admins]) {
-        if (s.expoPushToken) bySupervisor.set(s.id, s.expoPushToken);
+      // Dedupe (supervisorId, pushToken) pairs across both queries.
+      const seen = new Set<string>();
+      const recipients: { supervisorId: number; token: string }[] = [];
+      for (const r of [...assigned, ...admins]) {
+        const key = `${r.supervisorId}|${r.pushToken}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        recipients.push({ supervisorId: r.supervisorId, token: r.pushToken });
       }
-      const recipients = Array.from(bySupervisor, ([supervisorId, token]) => ({
-        supervisorId,
-        token,
-      }));
       return notifySupervisorsOfNewIssue({
         issueId: fullIssue.id,
         restaurantName: fullIssue.restaurantName ?? "Restaurant",

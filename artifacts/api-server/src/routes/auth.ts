@@ -4,6 +4,7 @@ import {
   restaurantsTable,
   supervisorsTable,
   supervisorSessionsTable,
+  supervisorDevicesTable,
   deviceSessionsTable,
   pairingCodesTable,
 } from "@workspace/db";
@@ -80,10 +81,21 @@ router.post("/auth/supervisor/push-token", async (req, res) => {
     return;
   }
 
+  // Upsert into supervisor_devices: one row per (supervisorId, token).
+  // Same supervisor on phone+tablet → two rows → notifications fan out to both.
+  // Re-registering the same token (loadSession + loginSupervisor in quick
+  // succession, or after a no-op restart) is a no-op aside from bumping
+  // lastSeenAt. The unique index handles the deduplication.
   await db
-    .update(supervisorsTable)
-    .set({ expoPushToken: pushToken })
-    .where(eq(supervisorsTable.id, supervisor.id));
+    .insert(supervisorDevicesTable)
+    .values({
+      supervisorId: supervisor.id,
+      expoPushToken: pushToken,
+    })
+    .onConflictDoUpdate({
+      target: [supervisorDevicesTable.supervisorId, supervisorDevicesTable.expoPushToken],
+      set: { lastSeenAt: new Date() },
+    });
 
   res.json({ success: true });
 });
