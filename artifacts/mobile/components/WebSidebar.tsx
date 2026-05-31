@@ -44,7 +44,6 @@ export default function WebSidebar() {
         </View>
         <View>
           <Text style={styles.appName}>DownTime</Text>
-          <Text style={styles.orgName}>Gandar Management</Text>
         </View>
       </View>
 
@@ -129,12 +128,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.3,
-  },
-  orgName: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.5)",
-    fontFamily: "Inter_400Regular",
-    marginTop: 1,
   },
   divider: {
     height: 1,
