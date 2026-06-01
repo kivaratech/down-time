@@ -315,4 +315,255 @@ router.get("/privacy", (_req, res) => {
   res.send(PRIVACY_HTML);
 });
 
+// Dedicated data-deletion instructions, separate from the privacy policy.
+// Google Play Console asks for a specific URL with prominent deletion steps,
+// app/developer name reference, and explicit data-type breakdown of what's
+// deleted vs kept. Reviewers click this URL from the Play listing.
+const DATA_DELETION_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DownTime — Request Account & Data Deletion</title>
+  <style>
+    :root {
+      --primary: #0F3460;
+      --accent: #E63946;
+      --text: #0D1B2A;
+      --text-secondary: #5C6B82;
+      --border: #E4E8EF;
+      --bg: #F8F9FB;
+      --surface: #FFFFFF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 48px 20px 32px;
+      text-align: center;
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    header p {
+      margin: 0;
+      opacity: 0.85;
+      font-size: 14px;
+    }
+    main {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      margin-top: -24px;
+    }
+    h2 {
+      font-size: 19px;
+      margin: 28px 0 10px;
+      color: var(--primary);
+    }
+    h2:first-of-type { margin-top: 0; }
+    p, ul, ol { margin: 0 0 12px; }
+    ul, ol { padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    .step {
+      background: var(--bg);
+      border-left: 3px solid var(--primary);
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      border-radius: 0 6px 6px 0;
+    }
+    .step strong { color: var(--primary); display: block; margin-bottom: 4px; }
+    .mailto-pill {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 8px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    th { background: var(--bg); font-weight: 600; }
+    .muted {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #E8ECF2;
+        --text-secondary: #9BAABB;
+        --border: #2A3445;
+        --bg: #0D1B2A;
+        --surface: #131F33;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Request Account &amp; Data Deletion</h1>
+    <p>For users of DownTime by Kivara Tech</p>
+  </header>
+  <div class="container">
+    <main>
+      <h2>About this page</h2>
+      <p>
+        DownTime is a restaurant equipment issue tracking app published by
+        Kivara Tech. This page explains how to request deletion of your
+        DownTime account and the data associated with it. For complete
+        details on what we collect and how we handle data, see our
+        <a href="/privacy">Privacy Policy</a>.
+      </p>
+
+      <h2>How to request deletion</h2>
+      <p>Choose whichever path matches your situation:</p>
+
+      <div class="step">
+        <strong>Option A: Ask your organization's admin (fastest)</strong>
+        If you're an active user, your organization's DownTime admin can
+        deactivate your account or reset your password from inside the
+        app's user management screen. This stops your access immediately.
+        Ask them directly — no email needed.
+      </div>
+
+      <div class="step">
+        <strong>Option B: Email Kivara Tech (for full deletion)</strong>
+        Send an email to the address below from the email tied to your
+        account (or describe your account clearly enough that we can
+        identify it) and we will permanently delete your user record and
+        all associated data within 30 days. Include the subject line
+        "DownTime data deletion request."
+      </div>
+
+      <p style="text-align: center;">
+        <a href="mailto:kivara.tech@gmail.com?subject=DownTime%20data%20deletion%20request" class="mailto-pill">
+          kivara.tech@gmail.com
+        </a>
+      </p>
+
+      <div class="step">
+        <strong>Option C: Delete your entire organization (admins only)</strong>
+        If you are a super-admin or org admin and want to remove your
+        organization entirely from DownTime, email us at the address above
+        and we'll fully delete the organization, all of its users, all
+        restaurants, all issues, all comments, and all uploaded photos in
+        one cascading deletion.
+      </div>
+
+      <h2>What gets deleted</h2>
+      <p>When you request deletion of your individual account:</p>
+      <table>
+        <thead>
+          <tr><th>Data type</th><th>Deleted?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Your username, display name, email</td><td>Yes — permanently</td></tr>
+          <tr><td>Your password hash</td><td>Yes — permanently</td></tr>
+          <tr><td>Your push notification tokens</td><td>Yes — permanently</td></tr>
+          <tr><td>Your active sessions</td><td>Yes — immediately revoked</td></tr>
+          <tr><td>Your restaurant assignments</td><td>Yes — permanently</td></tr>
+          <tr><td>Issues you created</td><td>Retained but the author field is anonymised</td></tr>
+          <tr><td>Comments you posted</td><td>Retained but anonymised</td></tr>
+        </tbody>
+      </table>
+
+      <p class="muted">
+        Why anonymise rather than delete issues and comments? Issues are
+        organizational records of equipment problems that other people
+        in your organization rely on (history of what was reported, how
+        it was resolved). Deleting them would leave gaps in your
+        organization's maintenance history. Removing your name from them
+        protects your identity while preserving the underlying
+        operational record.
+      </p>
+
+      <p>When an entire organization is deleted:</p>
+      <table>
+        <thead>
+          <tr><th>Data type</th><th>Deleted?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>All users in the organization</td><td>Yes — permanently</td></tr>
+          <tr><td>All restaurants</td><td>Yes — permanently</td></tr>
+          <tr><td>All issues and comments</td><td>Yes — permanently</td></tr>
+          <tr><td>All photos uploaded to issues</td><td>Yes — permanently</td></tr>
+          <tr><td>All push notification tokens</td><td>Yes — permanently</td></tr>
+          <tr><td>All sessions and pairing codes</td><td>Yes — permanently</td></tr>
+        </tbody>
+      </table>
+
+      <h2>What is kept (briefly)</h2>
+      <ul>
+        <li>
+          <strong>Server logs</strong> covering the period including your
+          request (IP, timestamps, request paths) are retained for a short
+          rolling window for operational and security purposes — never
+          longer than 30 days, and not associated with your identity once
+          your account is deleted.
+        </li>
+        <li>
+          <strong>Backup snapshots</strong> of our database may temporarily
+          contain your data after deletion until the backups roll over.
+          Backup retention is currently &le;14 days.
+        </li>
+      </ul>
+
+      <h2>How long it takes</h2>
+      <p>
+        Account deactivations via your org admin are immediate. Full
+        deletion requests sent to <a href="mailto:kivara.tech@gmail.com">kivara.tech@gmail.com</a>
+        are processed within 30 days. We will reply confirming the
+        deletion has been completed.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Kivara Tech &mdash;
+        <a href="mailto:kivara.tech@gmail.com">kivara.tech@gmail.com</a>
+      </p>
+      <p class="muted">
+        See also our full <a href="/privacy">Privacy Policy</a>.
+      </p>
+    </main>
+  </div>
+</body>
+</html>`;
+
+router.get("/data-deletion", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(DATA_DELETION_HTML);
+});
+
 export default router;
