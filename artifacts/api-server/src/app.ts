@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import legalRouter from "./routes/legal";
 import { logger } from "./lib/logger";
 import { principalMiddleware } from "./middleware/principal";
 
@@ -39,6 +40,12 @@ app.use(express.urlencoded({ extended: true }));
 // Resolve Bearer token → req.principal for routes that opt in.
 // Fails open: missing/invalid token leaves principal undefined and route guards 401.
 app.use(principalMiddleware);
+
+// Mount legal pages at the root (not under /api) so the public-facing URLs
+// look clean — `https://.../privacy` rather than `https://.../api/privacy`.
+// App Store and Play Store reviewers click these URLs from the store
+// listing and the cleaner path reads more professionally.
+app.use(legalRouter);
 
 app.use("/api", router);
 
