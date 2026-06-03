@@ -3,9 +3,11 @@ import {
   useCreateOrgAdmin,
   useCreateOrgRestaurant,
   useDeleteOrganization,
+  useDeleteOrgRestaurant,
   useGetOrganization,
   useRenameOrganization,
   useResetOrgUserPassword,
+  useUpdateOrgRestaurant,
   getGetOrganizationQueryKey,
   getListOrganizationsQueryKey,
   type OrgUser,
@@ -152,6 +154,86 @@ export default function OrganizationDetailScreen() {
         name: restaurantForm.name.trim(),
         location: restaurantForm.location.trim(),
       },
+    });
+  };
+
+  // ---- Restaurant edit modal -------------------------------------------------
+  const [editRestaurant, setEditRestaurant] = useState<Restaurant | null>(null);
+  const [editRestaurantForm, setEditRestaurantForm] = useState({ name: "", location: "" });
+  const [editRestaurantError, setEditRestaurantError] = useState("");
+
+  const updateRestaurantMutation = useUpdateOrgRestaurant({
+    mutation: {
+      onSuccess: async () => {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        queryClient.invalidateQueries({ queryKey: getGetOrganizationQueryKey(orgId) });
+        setEditRestaurant(null);
+        setEditRestaurantError("");
+      },
+      onError: (err: unknown) => {
+        setEditRestaurantError(
+          (err as { data?: { error?: string } })?.data?.error ??
+            (err as { message?: string })?.message ??
+            "Failed to update restaurant."
+        );
+      },
+    },
+  });
+
+  const openEditRestaurant = (r: Restaurant) => {
+    setEditRestaurant(r);
+    setEditRestaurantForm({ name: r.name, location: r.location });
+    setEditRestaurantError("");
+  };
+
+  const submitEditRestaurant = () => {
+    if (!editRestaurant) return;
+    setEditRestaurantError("");
+    const name = editRestaurantForm.name.trim();
+    const location = editRestaurantForm.location.trim();
+    if (!name) {
+      setEditRestaurantError("Restaurant name is required.");
+      return;
+    }
+    if (!location) {
+      setEditRestaurantError("Location is required.");
+      return;
+    }
+    // No-op edit — just close the modal without a network round-trip.
+    if (name === editRestaurant.name && location === editRestaurant.location) {
+      setEditRestaurant(null);
+      return;
+    }
+    updateRestaurantMutation.mutate({
+      id: orgId,
+      restaurantId: editRestaurant.id,
+      data: { name, location },
+    });
+  };
+
+  // ---- Restaurant delete confirmation ----------------------------------------
+  const [deleteRestaurantTarget, setDeleteRestaurantTarget] = useState<Restaurant | null>(null);
+
+  const deleteRestaurantMutation = useDeleteOrgRestaurant({
+    mutation: {
+      onSuccess: async () => {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        queryClient.invalidateQueries({ queryKey: getGetOrganizationQueryKey(orgId) });
+        queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
+        setDeleteRestaurantTarget(null);
+      },
+      onError: () => {
+        setDeleteRestaurantTarget(null);
+        Alert.alert("Delete Failed", "Could not delete the restaurant. Try again.");
+      },
+    },
+  });
+
+  const doDeleteRestaurant = () => {
+    if (!deleteRestaurantTarget) return;
+    deleteRestaurantMutation.mutate({
+      id: orgId,
+      restaurantId: deleteRestaurantTarget.id,
     });
   };
 
@@ -363,12 +445,12 @@ export default function OrganizationDetailScreen() {
             <EmptyRow text="No restaurants yet." />
           ) : (
             org.restaurants?.map((r: Restaurant) => (
-              <View key={r.id} style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <Text style={styles.rowTitle}>{r.name}</Text>
-                  <Text style={styles.rowSub}>{r.location}</Text>
-                </View>
-              </View>
+              <RestaurantRow
+                key={r.id}
+                restaurant={r}
+                onEdit={() => openEditRestaurant(r)}
+                onDelete={() => setDeleteRestaurantTarget(r)}
+              />
             ))
           )}
         </View>
@@ -431,6 +513,93 @@ export default function OrganizationDetailScreen() {
           />
         </View>
       </FormModal>
+
+      {/* Edit restaurant modal */}
+      <FormModal
+        visible={editRestaurant !== null}
+        title={`Edit ${editRestaurant?.name ?? "Restaurant"}`}
+        submitting={updateRestaurantMutation.isPending}
+        onSubmit={submitEditRestaurant}
+        onCancel={() => setEditRestaurant(null)}
+        error={editRestaurantError}
+        submitLabel="Save"
+      >
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Name *</Text>
+          <TextInput
+            style={styles.input}
+            value={editRestaurantForm.name}
+            onChangeText={(v) => setEditRestaurantForm((f) => ({ ...f, name: v }))}
+            placeholder="Restaurant name"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="words"
+            editable={!updateRestaurantMutation.isPending}
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Location *</Text>
+          <TextInput
+            style={styles.input}
+            value={editRestaurantForm.location}
+            onChangeText={(v) =>
+              setEditRestaurantForm((f) => ({ ...f, location: v }))
+            }
+            placeholder="e.g. 123 Main St"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="words"
+            editable={!updateRestaurantMutation.isPending}
+          />
+        </View>
+      </FormModal>
+
+      {/* Delete restaurant confirmation modal */}
+      <Modal
+        visible={!!deleteRestaurantTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!deleteRestaurantMutation.isPending) setDeleteRestaurantTarget(null);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Feather name="alert-triangle" size={28} color={Colors.accent} />
+              <Text style={styles.modalTitle}>Delete Restaurant</Text>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              This deletes{" "}
+              <Text style={{ fontWeight: "700", color: Colors.text }}>
+                {deleteRestaurantTarget?.name}
+              </Text>{" "}
+              and everything attached to it: all issues, comments, photos,
+              device pairings, and pairing codes. Supervisors assigned only
+              to this restaurant lose their assignment but keep their account.
+              This cannot be undone.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => setDeleteRestaurantTarget(null)}
+                disabled={deleteRestaurantMutation.isPending}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnDanger]}
+                onPress={doDeleteRestaurant}
+                disabled={deleteRestaurantMutation.isPending}
+              >
+                {deleteRestaurantMutation.isPending ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalBtnPrimaryText}>Delete Restaurant</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add restaurant modal */}
       <FormModal
@@ -759,6 +928,39 @@ function EmptyRow({ text }: { text: string }) {
   );
 }
 
+function RestaurantRow({
+  restaurant,
+  onEdit,
+  onDelete,
+}: {
+  restaurant: Restaurant;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <Text style={styles.rowTitle}>{restaurant.name}</Text>
+        <Text style={styles.rowSub}>{restaurant.location}</Text>
+      </View>
+      <TouchableOpacity
+        onPress={onEdit}
+        style={styles.rowIconBtn}
+        accessibilityLabel={`Edit ${restaurant.name}`}
+      >
+        <Feather name="edit-2" size={16} color={Colors.primary} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onDelete}
+        style={styles.rowIconBtn}
+        accessibilityLabel={`Delete ${restaurant.name}`}
+      >
+        <Feather name="trash-2" size={16} color={Colors.accent} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function UserRow({
   user,
   onResetPassword,
@@ -963,6 +1165,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: Colors.warning + "12",
     borderRadius: 8,
+  },
+  rowIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.borderLight,
+    marginLeft: 4,
   },
   rowActionText: {
     color: Colors.warning,

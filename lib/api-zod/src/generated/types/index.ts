@@ -59,5 +59,6 @@ export * from "./supervisorRole";
 export * from "./updateIssueRequest";
 export * from "./updateIssueRequestPriority";
 export * from "./updateIssueRequestStatus";
+export * from "./updateOrgRestaurantRequest";
 export * from "./uploadUrlRequest";
 export * from "./uploadUrlResponse";

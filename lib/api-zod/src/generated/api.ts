@@ -494,6 +494,40 @@ export const CreateOrgRestaurantBody = zod.object({
 });
 
 /**
+ * @summary Update a restaurant's name and/or location
+ */
+export const UpdateOrgRestaurantParams = zod.object({
+  id: zod.coerce.number(),
+  restaurantId: zod.coerce.number(),
+});
+
+export const updateOrgRestaurantBodyNameMax = 200;
+
+export const UpdateOrgRestaurantBody = zod.object({
+  name: zod.string().min(1).max(updateOrgRestaurantBodyNameMax).optional(),
+  location: zod.string().optional(),
+});
+
+export const UpdateOrgRestaurantResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  location: zod.string(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Hard delete a restaurant and all of its issues, comments, sessions, pairing codes, and photos (cascaded in a transaction)
+ */
+export const DeleteOrgRestaurantParams = zod.object({
+  id: zod.coerce.number(),
+  restaurantId: zod.coerce.number(),
+});
+
+export const DeleteOrgRestaurantResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
  * @summary Add an admin to an existing organization
  */
 export const CreateOrgAdminParams = zod.object({

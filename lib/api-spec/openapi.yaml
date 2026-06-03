@@ -671,6 +671,80 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /super-admin/organizations/{id}/restaurants/{restaurantId}:
+    patch:
+      operationId: updateOrgRestaurant
+      tags: [super-admin]
+      summary: Update a restaurant's name and/or location
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: restaurantId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrgRestaurantRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Restaurant"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Restaurant not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteOrgRestaurant
+      tags: [super-admin]
+      summary: Hard delete a restaurant and all of its issues, comments, sessions, pairing codes, and photos (cascaded in a transaction)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: restaurantId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Restaurant not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /super-admin/organizations/{id}/admins:
     post:
       operationId: createOrgAdmin
@@ -1211,6 +1285,16 @@ components:
         location:
           type: string
       required: [name, location]
+
+    UpdateOrgRestaurantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        location:
+          type: string
 
     RenameOrganizationRequest:
       type: object

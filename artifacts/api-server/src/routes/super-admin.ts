@@ -22,7 +22,7 @@ import {
   type EquipmentTemplateKey,
 } from "@workspace/db/equipment-templates";
 import { hashPassword, requireSuperAdmin } from "../lib/auth";
-import { deleteObjectsByOrgPrefix } from "../lib/objectStorage";
+import { deleteObjectByKey, deleteObjectsByOrgPrefix } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -459,6 +459,179 @@ router.post("/super-admin/organizations/:id/restaurants", async (req, res) => {
     location: restaurant.location,
     createdAt: restaurant.createdAt,
   });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/super-admin/organizations/:id/restaurants/:restaurantId
+// Update a restaurant's name and/or location. Both fields are optional;
+// at least one must be provided. Validates that the restaurant belongs to
+// the targeted org (404 if not, no info leak across orgs).
+// ---------------------------------------------------------------------------
+const UpdateOrgRestaurantBody = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    location: z.string().optional(),
+  })
+  .refine((d) => d.name !== undefined || d.location !== undefined, {
+    message: "At least one of name or location is required",
+  });
+
+router.patch("/super-admin/organizations/:id/restaurants/:restaurantId", async (req, res) => {
+  const admin = requireSuperAdmin(req, res);
+  if (!admin) return;
+
+  const orgId = parseInt(req.params.id, 10);
+  const restaurantId = parseInt(req.params.restaurantId, 10);
+  if (isNaN(orgId) || isNaN(restaurantId)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const body = UpdateOrgRestaurantBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request", details: body.error.flatten() });
+    return;
+  }
+
+  // Verify the restaurant exists AND belongs to the targeted org. Either
+  // condition false → 404 (no information leak about restaurants in other
+  // orgs, matching the patterns in admin-users.ts and the org-rename handler).
+  const [existing] = await db
+    .select({ id: restaurantsTable.id })
+    .from(restaurantsTable)
+    .where(
+      and(
+        eq(restaurantsTable.id, restaurantId),
+        eq(restaurantsTable.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Restaurant not found in this organization" });
+    return;
+  }
+
+  const updates: Partial<typeof restaurantsTable.$inferInsert> = {};
+  if (body.data.name !== undefined) updates.name = body.data.name.trim();
+  if (body.data.location !== undefined) updates.location = body.data.location.trim();
+
+  const [updated] = await db
+    .update(restaurantsTable)
+    .set(updates)
+    .where(eq(restaurantsTable.id, restaurantId))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    location: updated.location,
+    createdAt: updated.createdAt,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/super-admin/organizations/:id/restaurants/:restaurantId
+// Hard delete a restaurant and everything attached to it: issues (which
+// cascade comments + notification_attempts via FK), supervisor assignments,
+// device sessions, restaurant sessions (legacy), pairing codes, and the
+// attached photos in GCS. All DB ops in one transaction; the GCS cleanup
+// is best-effort after the tx commits (same pattern as org-delete and
+// per-issue delete: DB is the source of truth, GCS hiccups don't fail
+// the response).
+// ---------------------------------------------------------------------------
+router.delete("/super-admin/organizations/:id/restaurants/:restaurantId", async (req, res) => {
+  const admin = requireSuperAdmin(req, res);
+  if (!admin) return;
+
+  const orgId = parseInt(req.params.id, 10);
+  const restaurantId = parseInt(req.params.restaurantId, 10);
+  if (isNaN(orgId) || isNaN(restaurantId)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: restaurantsTable.id })
+    .from(restaurantsTable)
+    .where(
+      and(
+        eq(restaurantsTable.id, restaurantId),
+        eq(restaurantsTable.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Restaurant not found in this organization" });
+    return;
+  }
+
+  // Capture imageUrls BEFORE the tx so we can clean them up from GCS after
+  // the DB rows are gone. We collect outside the tx; the tx itself deletes
+  // the DB rows. If GCS cleanup fails after the tx, the DB is still
+  // consistent (the rows are gone, the blobs are orphaned — harmless).
+  const issuesWithPhotos = await db
+    .select({ id: issuesTable.id, imageUrl: issuesTable.imageUrl })
+    .from(issuesTable)
+    .where(eq(issuesTable.restaurantId, restaurantId));
+  const issueIds = issuesWithPhotos.map((i) => i.id);
+  const photoKeys = issuesWithPhotos
+    .map((i) => i.imageUrl)
+    .filter((k): k is string => typeof k === "string" && k.length > 0);
+
+  await db.transaction(async (tx) => {
+    // Anything FK'd into issues first (comments). notification_attempts has
+    // ON DELETE CASCADE on issueId, so it self-cleans when issues are
+    // deleted — no need to delete it explicitly here.
+    if (issueIds.length > 0) {
+      await tx.delete(commentsTable).where(inArray(commentsTable.issueId, issueIds));
+    }
+    // Anything FK'd into restaurants (sessions, assignments, codes).
+    await tx
+      .delete(supervisorRestaurantsTable)
+      .where(eq(supervisorRestaurantsTable.restaurantId, restaurantId));
+    await tx
+      .delete(deviceSessionsTable)
+      .where(eq(deviceSessionsTable.restaurantId, restaurantId));
+    await tx
+      .delete(restaurantSessionsTable)
+      .where(eq(restaurantSessionsTable.restaurantId, restaurantId));
+    await tx
+      .delete(pairingCodesTable)
+      .where(eq(pairingCodesTable.restaurantId, restaurantId));
+    // Issues, then the restaurant itself.
+    await tx.delete(issuesTable).where(eq(issuesTable.restaurantId, restaurantId));
+    await tx.delete(restaurantsTable).where(eq(restaurantsTable.id, restaurantId));
+  });
+
+  // Best-effort photo cleanup outside the transaction. We log warnings on
+  // failure but never fail the response — the DB delete already succeeded
+  // and we don't want a GCS hiccup turning a successful delete into a 500.
+  if (photoKeys.length > 0) {
+    let cleaned = 0;
+    for (const key of photoKeys) {
+      try {
+        const ok = await deleteObjectByKey(key);
+        if (ok) cleaned++;
+        else {
+          logger.warn(
+            { restaurantId, key },
+            "GCS photo cleanup returned false during restaurant delete",
+          );
+        }
+      } catch (err) {
+        logger.warn(
+          { err, restaurantId, key },
+          "GCS photo cleanup threw during restaurant delete",
+        );
+      }
+    }
+    logger.info(
+      { restaurantId, attempted: photoKeys.length, cleaned },
+      "deleted restaurant photos after cascade",
+    );
+  }
+
+  res.json({ success: true });
 });
 
 // ---------------------------------------------------------------------------

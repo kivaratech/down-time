@@ -48,6 +48,7 @@ import type {
   SupervisorLoginRequest,
   SupervisorLoginResponse,
   UpdateIssueRequest,
+  UpdateOrgRestaurantRequest,
   UploadUrlRequest,
   UploadUrlResponse,
 } from "./api.schemas";
@@ -2105,6 +2106,203 @@ export const useCreateOrgRestaurant = <
   TContext
 > => {
   return useMutation(getCreateOrgRestaurantMutationOptions(options));
+};
+
+/**
+ * @summary Update a restaurant's name and/or location
+ */
+export const getUpdateOrgRestaurantUrl = (id: number, restaurantId: number) => {
+  return `/api/super-admin/organizations/${id}/restaurants/${restaurantId}`;
+};
+
+export const updateOrgRestaurant = async (
+  id: number,
+  restaurantId: number,
+  updateOrgRestaurantRequest: UpdateOrgRestaurantRequest,
+  options?: RequestInit,
+): Promise<Restaurant> => {
+  return customFetch<Restaurant>(getUpdateOrgRestaurantUrl(id, restaurantId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateOrgRestaurantRequest),
+  });
+};
+
+export const getUpdateOrgRestaurantMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOrgRestaurant>>,
+    TError,
+    {
+      id: number;
+      restaurantId: number;
+      data: BodyType<UpdateOrgRestaurantRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateOrgRestaurant>>,
+  TError,
+  {
+    id: number;
+    restaurantId: number;
+    data: BodyType<UpdateOrgRestaurantRequest>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateOrgRestaurant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateOrgRestaurant>>,
+    {
+      id: number;
+      restaurantId: number;
+      data: BodyType<UpdateOrgRestaurantRequest>;
+    }
+  > = (props) => {
+    const { id, restaurantId, data } = props ?? {};
+
+    return updateOrgRestaurant(id, restaurantId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateOrgRestaurantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateOrgRestaurant>>
+>;
+export type UpdateOrgRestaurantMutationBody =
+  BodyType<UpdateOrgRestaurantRequest>;
+export type UpdateOrgRestaurantMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a restaurant's name and/or location
+ */
+export const useUpdateOrgRestaurant = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOrgRestaurant>>,
+    TError,
+    {
+      id: number;
+      restaurantId: number;
+      data: BodyType<UpdateOrgRestaurantRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateOrgRestaurant>>,
+  TError,
+  {
+    id: number;
+    restaurantId: number;
+    data: BodyType<UpdateOrgRestaurantRequest>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdateOrgRestaurantMutationOptions(options));
+};
+
+/**
+ * @summary Hard delete a restaurant and all of its issues, comments, sessions, pairing codes, and photos (cascaded in a transaction)
+ */
+export const getDeleteOrgRestaurantUrl = (id: number, restaurantId: number) => {
+  return `/api/super-admin/organizations/${id}/restaurants/${restaurantId}`;
+};
+
+export const deleteOrgRestaurant = async (
+  id: number,
+  restaurantId: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(
+    getDeleteOrgRestaurantUrl(id, restaurantId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteOrgRestaurantMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOrgRestaurant>>,
+    TError,
+    { id: number; restaurantId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteOrgRestaurant>>,
+  TError,
+  { id: number; restaurantId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteOrgRestaurant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteOrgRestaurant>>,
+    { id: number; restaurantId: number }
+  > = (props) => {
+    const { id, restaurantId } = props ?? {};
+
+    return deleteOrgRestaurant(id, restaurantId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteOrgRestaurantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteOrgRestaurant>>
+>;
+
+export type DeleteOrgRestaurantMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Hard delete a restaurant and all of its issues, comments, sessions, pairing codes, and photos (cascaded in a transaction)
+ */
+export const useDeleteOrgRestaurant = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOrgRestaurant>>,
+    TError,
+    { id: number; restaurantId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteOrgRestaurant>>,
+  TError,
+  { id: number; restaurantId: number },
+  TContext
+> => {
+  return useMutation(getDeleteOrgRestaurantMutationOptions(options));
 };
 
 /**

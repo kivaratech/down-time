@@ -353,6 +353,15 @@ export interface CreateOrgRestaurantRequest {
   location: string;
 }
 
+export interface UpdateOrgRestaurantRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  location?: string;
+}
+
 export interface RenameOrganizationRequest {
   /**
    * @minLength 1
