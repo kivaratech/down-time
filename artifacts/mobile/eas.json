@@ -13,17 +13,19 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "workspaceapi-server-production-8421.up.railway.app"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
-  "distribution": "internal",
-  "android": {
-    "buildType": "apk"
-  },
-  "env": {
-    "EXPO_PUBLIC_DOMAIN": "workspaceapi-server-production-8421.up.railway.app"
-  }
-},
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "workspaceapi-server-production-8421.up.railway.app"
+      },
+      "channel": "preview"
+    },
     "production": {
       "distribution": "store",
       "ios": {
@@ -34,7 +36,8 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "workspaceapi-server-production-8421.up.railway.app"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
