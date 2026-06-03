@@ -10,7 +10,7 @@ const router: IRouter = Router();
 // change. If we ever stand up kivaratech.com or another marketing domain,
 // the Play / App Store listing URL can be swapped without touching this
 // file — the policy itself remains the same.
-const LAST_UPDATED = "2026-05-29";
+const LAST_UPDATED = "2026-05-30";
 
 const PRIVACY_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -221,11 +221,26 @@ const PRIVACY_HTML = `<!DOCTYPE html>
       <h2>How long we keep it</h2>
       <p>
         We retain organizational data (users, restaurants, issues, photos)
-        for as long as your organization is using DownTime. When a
-        super-admin deletes an organization, all of its data &mdash; users,
-        restaurants, issues, comments, photos, sessions, and push tokens
-        &mdash; is removed from our database and storage. Server logs are
-        retained for a short rolling window for operational purposes.
+        for as long as your organization is using DownTime. There are two
+        kinds of deletion that remove your data sooner:
+      </p>
+      <ul>
+        <li>
+          <strong>Per-issue deletion.</strong> When an admin deletes an
+          individual issue from within the app, that issue's record is
+          removed from our database and its attached photo (if any) is
+          removed from our object storage at the same time.
+        </li>
+        <li>
+          <strong>Organization deletion.</strong> When a super-admin
+          deletes an organization, all of its data &mdash; users,
+          restaurants, issues, comments, photos, sessions, and push
+          tokens &mdash; is removed from our database and storage.
+        </li>
+      </ul>
+      <p>
+        Server logs are retained for a short rolling window for
+        operational and security purposes (no more than 30 days).
       </p>
 
       <h2>Who can access your data</h2>

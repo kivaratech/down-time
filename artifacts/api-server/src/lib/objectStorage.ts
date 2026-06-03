@@ -339,6 +339,29 @@ export async function deleteObjectsByOrgPrefix(orgId: number): Promise<number> {
 }
 
 /**
+ * Delete a single GCS object by its key (e.g. `1/uploads/abc-def-...`).
+ * Called by the issue-delete handler so a deleted issue's photo doesn't
+ * sit in storage as an orphan blob (matches user expectation and the
+ * privacy policy's promise around per-issue data removal).
+ *
+ * Best-effort: returns `true` on success or if the file didn't exist
+ * (idempotent), `false` if the delete call threw. The caller should
+ * log a warning on `false` but not fail the surrounding DB operation —
+ * the issue row has already been deleted by the time this runs.
+ */
+export async function deleteObjectByKey(objectKey: string): Promise<boolean> {
+  if (!objectKey) return false;
+  const bucketName = getGcsBucketName();
+  const bucket = objectStorageClient.bucket(bucketName);
+  try {
+    await bucket.file(objectKey).delete({ ignoreNotFound: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Extracts the organization id from a stored object path.
  *
  * - New (Phase 4) paths look like `<orgId>/uploads/<uuid>` and return the orgId.

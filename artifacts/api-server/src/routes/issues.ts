@@ -19,7 +19,7 @@ import {
 } from "../lib/auth";
 import { getCategoryForArea } from "../lib/equipment";
 import { notifySupervisorsOfNewIssue } from "../lib/notifications";
-import { ObjectStorageService } from "../lib/objectStorage";
+import { ObjectStorageService, deleteObjectByKey } from "../lib/objectStorage";
 import {
   ListRestaurantIssuesParams,
   ListRestaurantIssuesQueryParams,
@@ -474,6 +474,28 @@ router.delete("/issues/:id", async (req, res) => {
 
   await db.delete(commentsTable).where(eq(commentsTable.issueId, id));
   await db.delete(issuesTable).where(eq(issuesTable.id, id));
+
+  // If the issue had a photo attached, remove the GCS object so it
+  // doesn't sit as an orphan blob (storage cost + privacy hygiene —
+  // /privacy commits to per-issue photo removal). Best-effort: the DB
+  // delete has already succeeded, so we never fail the response on a
+  // GCS hiccup — just log and continue.
+  if (existing.imageUrl) {
+    try {
+      const ok = await deleteObjectByKey(existing.imageUrl);
+      if (!ok) {
+        req.log.warn(
+          { issueId: id, imageUrl: existing.imageUrl },
+          "GCS photo cleanup failed after issue delete; orphan blob may remain",
+        );
+      }
+    } catch (err) {
+      req.log.warn(
+        { err, issueId: id, imageUrl: existing.imageUrl },
+        "GCS photo cleanup threw after issue delete",
+      );
+    }
+  }
 
   res.json({ success: true });
 });
