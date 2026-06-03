@@ -170,6 +170,13 @@ export default function SupervisorDashboardScreen() {
     queryKey: ["supervisor-issues-all", supervisor?.id],
     queryFn: () => listIssues({ status: "all" }),
     staleTime: 0,
+    // Auto-refresh every 30 seconds while the dashboard is open so newly
+    // reported issues from restaurant tablets appear without pull-to-
+    // refresh. Paused when the app is backgrounded to save battery —
+    // returning to foreground triggers a fresh fetch via TanStack
+    // Query's app-state listener.
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const { useSidebar } = useResponsiveLayout();
