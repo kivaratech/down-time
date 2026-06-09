@@ -1,5 +1,4 @@
 import { db, organizationsTable, supervisorsTable, restaurantsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
 import crypto from "crypto";
@@ -21,14 +20,15 @@ const SEED_RESTAURANTS = [
   { name: "Stockbridge", location: "Stockbridge Rd" },
 ];
 
-// Returns the default organization's id, creating it if it does not exist yet.
-async function ensureDefaultOrg(): Promise<number> {
-  const [existing] = await db
-    .select()
-    .from(organizationsTable)
-    .where(eq(organizationsTable.name, DEFAULT_ORG_NAME))
-    .limit(1);
-  if (existing) return existing.id;
+// Returns the default organization's id, creating it ONLY if the database
+// has zero organizations. Previously this matched by name, so deleting the
+// "DownTime" org via super-admin would resurrect it on the next server
+// restart (Railway redeploy / cold start) — the org seemed to come back
+// from the dead. Now: if ANY org exists, we treat the DB as initialized and
+// skip the seed entirely. First-boot-on-an-empty-DB still gets the default.
+async function ensureDefaultOrgIfDbEmpty(): Promise<number | null> {
+  const existingAny = await db.select({ id: organizationsTable.id }).from(organizationsTable).limit(1);
+  if (existingAny.length > 0) return null;
 
   const [created] = await db
     .insert(organizationsTable)
@@ -40,7 +40,14 @@ async function ensureDefaultOrg(): Promise<number> {
 
 export async function seedDatabaseIfEmpty(): Promise<void> {
   try {
-    const orgId = await ensureDefaultOrg();
+    const orgId = await ensureDefaultOrgIfDbEmpty();
+    // DB already has orgs → skip the rest. Supervisors and restaurants
+    // belong to specific orgs, and we no longer have a single default org
+    // to attach them to (the operator may have deleted DownTime on purpose).
+    if (orgId === null) {
+      logger.info("Database already has organizations — skipping seed");
+      return;
+    }
 
     const existingSupervisors = await db.select().from(supervisorsTable).limit(1);
     if (existingSupervisors.length === 0) {
