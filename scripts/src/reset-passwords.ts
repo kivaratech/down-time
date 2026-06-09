@@ -16,19 +16,19 @@ function hashPassword(password: string): string {
 }
 
 const RESETS = [
-  { username: "admin", password: "admin123" },
-  { username: "supervisor", password: "pass123" },
+  { email: "admin@downtime.local", password: "admin123" },
+  { email: "supervisor@downtime.local", password: "pass123" },
 ];
 
-for (const { username, password } of RESETS) {
+for (const { email, password } of RESETS) {
   const [row] = await db
     .select({ id: supervisorsTable.id })
     .from(supervisorsTable)
-    .where(eq(supervisorsTable.username, username))
+    .where(eq(supervisorsTable.email, email))
     .limit(1);
 
   if (!row) {
-    console.log(`  ⚠ No account found for "${username}" — skipping`);
+    console.log(`  ⚠ No account found for "${email}" — skipping`);
     continue;
   }
 
@@ -41,7 +41,7 @@ for (const { username, password } of RESETS) {
     .delete(supervisorSessionsTable)
     .where(eq(supervisorSessionsTable.supervisorId, row.id));
 
-  console.log(`  ✓ Reset password + cleared sessions for "${username}"`);
+  console.log(`  ✓ Reset password + cleared sessions for "${email}"`);
 }
 
 console.log("\nDone. Log in fresh with the credentials above.");

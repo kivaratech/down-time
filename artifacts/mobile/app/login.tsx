@@ -27,7 +27,7 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { loginSupervisor } = useAuth();
   const [mode, setMode] = useState<Mode>("choose");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,19 +36,22 @@ export default function LoginScreen() {
   const passwordRef = useRef<TextInput>(null);
 
   function reset() {
-    setUsername("");
+    setEmail("");
     setPassword("");
     setShowPassword(false);
     setError("");
   }
 
   const handleSupervisorLogin = async () => {
-    if (!username.trim() || !password || loading) return;
+    if (!email.trim() || !password || loading) return;
     setLoading(true);
     setError("");
 
     try {
-      const res = await supervisorLogin({ username: username.trim(), password });
+      // Server lowercases on its side too — sending lowercase here keeps the
+      // wire payload predictable and avoids any subtle case-sensitivity bugs
+      // if the server normalization ever changes.
+      const res = await supervisorLogin({ email: email.trim().toLowerCase(), password });
       // Narrow the server-returned role to a value the client knows how to
       // handle. supervisors.role is a plain text column with no DB enum, so
       // a rolled-forward server could return a string this client doesn't
@@ -60,7 +63,7 @@ export default function LoginScreen() {
         rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
       await loginSupervisor(res.token, {
         id: res.supervisor.id,
-        username: res.supervisor.username,
+        email: res.supervisor.email,
         name: res.supervisor.name,
         role,
         organizationId: res.supervisor.organizationId,
@@ -73,7 +76,7 @@ export default function LoginScreen() {
       const target = role === "super_admin" ? "/(super-admin)" : "/(supervisor)";
       router.replace(target as Href);
     } catch {
-      setError("Invalid username or password.");
+      setError("Invalid email or password.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -129,7 +132,7 @@ export default function LoginScreen() {
               </View>
               <View style={styles.choiceText}>
                 <Text style={styles.choiceTitle}>Supervisor / Admin Login</Text>
-                <Text style={styles.choiceSubtitle}>Individual login with username & password</Text>
+                <Text style={styles.choiceSubtitle}>Individual login with email & password</Text>
               </View>
               <Feather name="chevron-right" size={22} color={Colors.textTertiary} />
             </TouchableOpacity>
@@ -165,18 +168,19 @@ export default function LoginScreen() {
             <Text style={styles.formSubtitle}>Enter your individual credentials</Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Username</Text>
+              <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputWrapper}>
-                <Feather name="user" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                <Feather name="mail" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
-                  value={username}
-                  onChangeText={(v) => { setUsername(v); setError(""); }}
-                  placeholder="Enter username"
+                  value={email}
+                  onChangeText={(v) => { setEmail(v); setError(""); }}
+                  placeholder="Enter email"
                   placeholderTextColor={Colors.textTertiary}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  autoComplete="username"
+                  autoComplete="email"
+                  keyboardType="email-address"
                   returnKeyType="next"
                   onSubmitEditing={() => passwordRef.current?.focus()}
                   autoFocus
@@ -214,9 +218,9 @@ export default function LoginScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.loginBtn, (loading || !username.trim() || !password) && styles.loginBtnDisabled]}
+              style={[styles.loginBtn, (loading || !email.trim() || !password) && styles.loginBtnDisabled]}
               onPress={handleSupervisorLogin}
-              disabled={loading || !username.trim() || !password}
+              disabled={loading || !email.trim() || !password}
               activeOpacity={0.8}
             >
               {loading ? (

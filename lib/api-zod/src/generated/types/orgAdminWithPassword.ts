@@ -8,7 +8,7 @@
 
 export interface OrgAdminWithPassword {
   id: number;
-  username: string;
+  email: string;
   name: string;
   /** Plaintext password. Shown exactly once. */
   password: string;

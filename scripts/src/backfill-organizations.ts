@@ -17,7 +17,7 @@ import crypto from "crypto";
 // applied (drizzle-kit push), and only against a database you have backed up.
 
 const DEFAULT_ORG_NAME = process.env.DEFAULT_ORG_NAME?.trim() || "DownTime";
-const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME?.trim() || "superadmin";
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL?.trim() || "superadmin@downtime.local";
 const SUPER_ADMIN_NAME = process.env.SUPER_ADMIN_NAME?.trim() || "Platform Super Admin";
 
 const PBKDF2_ITERATIONS = 100000;
@@ -94,16 +94,16 @@ async function main() {
     const [existingSuper] = await tx
       .select({ id: supervisorsTable.id })
       .from(supervisorsTable)
-      .where(eq(supervisorsTable.username, SUPER_ADMIN_USERNAME))
+      .where(eq(supervisorsTable.email, SUPER_ADMIN_EMAIL))
       .limit(1);
 
     if (existingSuper) {
-      console.log(`  • Super admin "${SUPER_ADMIN_USERNAME}" already exists — left unchanged`);
+      console.log(`  • Super admin "${SUPER_ADMIN_EMAIL}" already exists — left unchanged`);
     } else {
       const password = process.env.SUPER_ADMIN_PASSWORD?.trim() || crypto.randomBytes(12).toString("base64url");
       await tx.insert(supervisorsTable).values({
         organizationId: null,
-        username: SUPER_ADMIN_USERNAME,
+        email: SUPER_ADMIN_EMAIL,
         passwordHash: hashPassword(password),
         name: SUPER_ADMIN_NAME,
         role: "super_admin",
@@ -111,7 +111,7 @@ async function main() {
       });
       console.log("  ✓ Created platform super_admin");
       console.log("    ───────────────────────────────────────────────");
-      console.log(`    username: ${SUPER_ADMIN_USERNAME}`);
+      console.log(`    email:    ${SUPER_ADMIN_EMAIL}`);
       console.log(`    password: ${password}`);
       console.log("    SAVE THIS PASSWORD — it will not be shown again.");
       console.log("    ───────────────────────────────────────────────");

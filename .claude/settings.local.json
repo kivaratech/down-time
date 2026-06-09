@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run *)",
+      "Bash(npx tsc *)",
+      "Bash(node_modules/.bin/tsc --build --noEmit)",
+      "Bash(pnpm --filter @workspace/db run push)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_t0xUSLsOXkr7@ep-curly-frost-amji1v0m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" node *)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_t0xUSLsOXkr7@ep-curly-frost-amji1v0m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" pnpm --filter @workspace/db run push)",
+      "Bash(psql --version)",
+      "Bash(pg_restore --version)",
+      "Bash(pnpm *)",
+      "Bash(git *)",
+      "Bash(netstat -ano)",
+      "PowerShell(Stop-Process *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in d.get\\('project_info',{}\\).keys\\(\\)]; print\\('clients:', len\\(d.get\\('client',[]\\)\\)\\); print\\('type field in client:', [c.get\\('client_info',{}\\).get\\('android_client_info',{}\\) for c in d.get\\('client',[]\\)]\\)\")",
+      "Bash(echo \"exit: $?\")"
+    ]
+  }
+}

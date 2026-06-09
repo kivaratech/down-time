@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, supervisorsTable, supervisorSessionsTable, supervisorRestaurantsTable, restaurantsTable } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { hashPassword, requireOrgAdmin } from "../lib/auth";
+import { validateEmailMx } from "../lib/emailValidation";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -33,7 +34,6 @@ router.get("/admin/users", async (req, res) => {
   const users = await db
     .select({
       id: supervisorsTable.id,
-      username: supervisorsTable.username,
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,
@@ -66,10 +66,9 @@ router.get("/admin/users", async (req, res) => {
 });
 
 const CreateUserBody = z.object({
-  username: z.string().min(2).max(50),
   password: z.string().min(6),
   name: z.string().min(1).max(100),
-  email: z.string().email().optional(),
+  email: z.string().email(),
   role: z.enum(["supervisor", "admin"]).default("supervisor"),
 });
 
@@ -84,24 +83,26 @@ router.post("/admin/users", async (req, res) => {
     return;
   }
 
-  const { username, password, name, email, role } = body.data;
+  const { password, name, role } = body.data;
+  // Normalize email — login lowercases too, so signup must match.
+  const email = body.data.email.trim().toLowerCase();
 
-  // Per-org uniqueness — matches the DB's composite (organization_id, username)
-  // unique constraint added in Phase 2 PR-3. Two orgs can both have an
-  // "admin" / "supervisor" username without colliding.
+  // Layer 2: MX record check (catches "gmial.com" etc.).
+  const mx = await validateEmailMx(email);
+  if (!mx.ok) {
+    res.status(400).json({ error: mx.reason });
+    return;
+  }
+
+  // Email is GLOBALLY unique (one person, one account).
   const [existing] = await db
     .select({ id: supervisorsTable.id })
     .from(supervisorsTable)
-    .where(
-      and(
-        eq(supervisorsTable.username, username),
-        eq(supervisorsTable.organizationId, admin.organizationId),
-      ),
-    )
+    .where(eq(supervisorsTable.email, email))
     .limit(1);
 
   if (existing) {
-    res.status(409).json({ error: "Username already taken" });
+    res.status(409).json({ error: "An account with this email already exists" });
     return;
   }
 
@@ -110,15 +111,13 @@ router.post("/admin/users", async (req, res) => {
     .insert(supervisorsTable)
     .values({
       organizationId: admin.organizationId,
-      username,
+      email,
       passwordHash,
       name,
-      email: email ?? null,
       role,
     })
     .returning({
       id: supervisorsTable.id,
-      username: supervisorsTable.username,
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,
@@ -130,13 +129,12 @@ router.post("/admin/users", async (req, res) => {
 });
 
 const UpdateUserBody = z.object({
-  username: z.string().min(2).max(50).optional(),
   name: z.string().min(1).max(100).optional(),
-  email: z.string().email().nullable().optional(),
+  email: z.string().email().optional(),
   role: z.enum(["supervisor", "admin"]).optional(),
 });
 
-// PATCH /api/admin/users/:id — update name/email/username/role (same org only)
+// PATCH /api/admin/users/:id — update name/email/role (same org only)
 router.patch("/admin/users/:id", async (req, res) => {
   const admin = requireOrgAdmin(req, res);
   if (!admin) return;
@@ -159,28 +157,28 @@ router.patch("/admin/users/:id", async (req, res) => {
     return;
   }
 
-  const { username, name, email, role } = body.data;
+  const { name, role } = body.data;
+  const email = body.data.email ? body.data.email.trim().toLowerCase() : undefined;
 
-  if (username) {
-    // Per-org uniqueness check — matches PR-3's composite unique index.
+  if (email !== undefined) {
+    const mx = await validateEmailMx(email);
+    if (!mx.ok) {
+      res.status(400).json({ error: mx.reason });
+      return;
+    }
+    // Global email uniqueness — same as on create.
     const [conflict] = await db
       .select({ id: supervisorsTable.id })
       .from(supervisorsTable)
-      .where(
-        and(
-          eq(supervisorsTable.username, username),
-          eq(supervisorsTable.organizationId, admin.organizationId),
-        ),
-      )
+      .where(eq(supervisorsTable.email, email))
       .limit(1);
     if (conflict && conflict.id !== id) {
-      res.status(409).json({ error: "Username already taken" });
+      res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
   }
 
   const updates: Record<string, any> = {};
-  if (username !== undefined) updates.username = username;
   if (name !== undefined) updates.name = name;
   if (email !== undefined) updates.email = email;
   if (role !== undefined) updates.role = role;
@@ -196,7 +194,6 @@ router.patch("/admin/users/:id", async (req, res) => {
     .where(eq(supervisorsTable.id, id))
     .returning({
       id: supervisorsTable.id,
-      username: supervisorsTable.username,
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,

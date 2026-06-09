@@ -40,11 +40,11 @@ const RESTAURANTS = [
 ];
 
 const SUPERVISORS = [
-  { username: "admin", password: "admin123", name: "Alex Johnson", role: "admin" as const },
-  { username: "supervisor", password: "pass123", name: "Maria Garcia", role: "supervisor" as const },
+  { email: "admin@downtime.local", password: "admin123", name: "Alex Johnson", role: "admin" as const },
+  { email: "supervisor@downtime.local", password: "pass123", name: "Maria Garcia", role: "supervisor" as const },
 ];
 
-const SUPER_ADMIN = { username: "superadmin", password: "super123", name: "Platform Super Admin" };
+const SUPER_ADMIN = { email: "superadmin@downtime.local", password: "super123", name: "Platform Super Admin" };
 
 // Dev seed uses the McDonald's template so DownTime org's catalog continues to
 // match its existing customer profile. The Phase 3 super-admin create-org flow
@@ -92,7 +92,7 @@ async function seed() {
     .values(
       SUPERVISORS.map((s) => ({
         organizationId: orgId,
-        username: s.username,
+        email: s.email,
         passwordHash: hashPassword(s.password),
         name: s.name,
         role: s.role,
@@ -103,7 +103,7 @@ async function seed() {
 
   await db.insert(supervisorsTable).values({
     organizationId: null,
-    username: SUPER_ADMIN.username,
+    email: SUPER_ADMIN.email,
     passwordHash: hashPassword(SUPER_ADMIN.password),
     name: SUPER_ADMIN.name,
     role: "super_admin",
@@ -300,9 +300,9 @@ async function seed() {
 
   console.log("✅ Seed complete!");
   console.log("\nTest accounts:");
-  console.log("Super Admin: superadmin / super123  (role: super_admin, no org)");
-  console.log("Admin:       admin / admin123  (role: admin)");
-  console.log("Supervisor:  supervisor / pass123  (role: supervisor)");
+  console.log("Super Admin: superadmin@downtime.local / super123  (role: super_admin, no org)");
+  console.log("Admin:       admin@downtime.local / admin123  (role: admin)");
+  console.log("Supervisor:  supervisor@downtime.local / pass123  (role: supervisor)");
   console.log("\nRestaurants (pair via admin pairing code):");
   RESTAURANTS.forEach((r) => console.log(`  ${r.name} — ${r.location}`));
   process.exit(0);

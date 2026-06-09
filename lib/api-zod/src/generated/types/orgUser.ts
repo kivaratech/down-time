@@ -9,9 +9,8 @@ import type { OrgUserRole } from "./orgUserRole";
 
 export interface OrgUser {
   id: number;
-  username: string;
+  email: string;
   name: string;
-  email: string | null;
   role: OrgUserRole;
   isActive: boolean;
   createdAt: Date;

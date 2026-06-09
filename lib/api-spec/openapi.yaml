@@ -870,11 +870,12 @@ components:
     SupervisorLoginRequest:
       type: object
       properties:
-        username:
+        email:
           type: string
+          format: email
         password:
           type: string
-      required: [username, password]
+      required: [email, password]
 
     SupervisorLoginResponse:
       type: object
@@ -890,8 +891,9 @@ components:
       properties:
         id:
           type: integer
-        username:
+        email:
           type: string
+          format: email
         name:
           type: string
         role:
@@ -901,7 +903,7 @@ components:
           type: integer
           nullable: true
           description: Null only for super_admin accounts.
-      required: [id, username, name, role, organizationId]
+      required: [id, email, name, role, organizationId]
 
     MeResponse:
       type: object
@@ -1163,13 +1165,11 @@ components:
       properties:
         id:
           type: integer
-        username:
-          type: string
-        name:
-          type: string
         email:
           type: string
-          nullable: true
+          format: email
+        name:
+          type: string
         role:
           type: string
           enum: [supervisor, admin]
@@ -1178,7 +1178,7 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, username, name, email, role, isActive, createdAt]
+      required: [id, email, name, role, isActive, createdAt]
 
     OrganizationDetail:
       allOf:
@@ -1219,36 +1219,34 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-        adminUsername:
+        adminEmail:
           type: string
-          minLength: 2
-          maxLength: 50
+          format: email
+          description: Email of the first admin (globally unique; used for login).
         adminName:
           type: string
           minLength: 1
           maxLength: 100
-        adminEmail:
-          type: string
-          nullable: true
         templateKey:
           type: string
           enum: [generic, mcdonalds]
           description: Equipment template to seed. Defaults to "generic" when omitted.
-      required: [name, adminUsername, adminName]
+      required: [name, adminEmail, adminName]
 
     OrgAdminWithPassword:
       type: object
       properties:
         id:
           type: integer
-        username:
+        email:
           type: string
+          format: email
         name:
           type: string
         password:
           type: string
           description: Plaintext password. Shown exactly once.
-      required: [id, username, name, password]
+      required: [id, email, name, password]
 
     CreateOrganizationResponse:
       type: object
@@ -1262,18 +1260,14 @@ components:
     CreateOrgAdminRequest:
       type: object
       properties:
-        username:
+        email:
           type: string
-          minLength: 2
-          maxLength: 50
+          format: email
         name:
           type: string
           minLength: 1
           maxLength: 100
-        email:
-          type: string
-          nullable: true
-      required: [username, name]
+      required: [email, name]
 
     CreateOrgRestaurantRequest:
       type: object

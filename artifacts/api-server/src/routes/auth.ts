@@ -27,13 +27,16 @@ const router: IRouter = Router();
 router.post("/auth/supervisor/login", async (req, res) => {
   const body = SupervisorLoginBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: "Username and password are required" });
+    res.status(400).json({ error: "Email and password are required" });
     return;
   }
+  // Email is globally unique (one person → one account, regardless of org).
+  // Normalize to lowercase so login matches signup regardless of caps.
+  const emailNormalized = body.data.email.trim().toLowerCase();
   const [supervisor] = await db
     .select()
     .from(supervisorsTable)
-    .where(eq(supervisorsTable.username, body.data.username))
+    .where(eq(supervisorsTable.email, emailNormalized))
     .limit(1);
   if (!supervisor || !verifyPassword(body.data.password, supervisor.passwordHash)) {
     res.status(401).json({ error: "Invalid credentials" });
@@ -49,7 +52,7 @@ router.post("/auth/supervisor/login", async (req, res) => {
     token,
     supervisor: {
       id: supervisor.id,
-      username: supervisor.username,
+      email: supervisor.email,
       name: supervisor.name,
       role: supervisor.role,
       organizationId: supervisor.organizationId,
@@ -320,7 +323,7 @@ router.get("/auth/me", async (req, res) => {
       type: "supervisor",
       supervisor: {
         id: supervisor.id,
-        username: supervisor.username,
+        email: supervisor.email,
         name: supervisor.name,
         role: supervisor.role,
         organizationId: supervisor.organizationId,

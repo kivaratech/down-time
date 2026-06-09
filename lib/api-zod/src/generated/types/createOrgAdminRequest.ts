@@ -7,15 +7,10 @@
  */
 
 export interface CreateOrgAdminRequest {
-  /**
-   * @minLength 2
-   * @maxLength 50
-   */
-  username: string;
+  email: string;
   /**
    * @minLength 1
    * @maxLength 100
    */
   name: string;
-  email?: string | null;
 }

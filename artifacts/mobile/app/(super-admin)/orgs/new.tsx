@@ -28,9 +28,9 @@ import Colors from "@/constants/colors";
 
 type FormState = {
   name: string;
-  adminUsername: string;
   adminName: string;
   adminEmail: string;
+  adminEmailConfirm: string;
   templateKey: string;
 };
 
@@ -38,18 +38,25 @@ const DEFAULT_TEMPLATE_KEY = "generic";
 
 const emptyForm = (): FormState => ({
   name: "",
-  adminUsername: "",
   adminName: "",
   adminEmail: "",
+  adminEmailConfirm: "",
   templateKey: DEFAULT_TEMPLATE_KEY,
 });
 
 type SuccessPayload = {
   organizationId: number;
   organizationName: string;
-  adminUsername: string;
+  adminEmail: string;
   password: string;
 };
+
+// Simple shape check that mirrors what the server's zod-email will accept.
+// We do the real validation server-side (zod + MX); this is just to surface
+// the "this clearly isn't an email" case before a round trip.
+function looksLikeEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
 
 export default function NewOrganizationScreen() {
   const insets = useSafeAreaInsets();
@@ -73,7 +80,7 @@ export default function NewOrganizationScreen() {
         setSuccess({
           organizationId: data.organization.id,
           organizationName: data.organization.name,
-          adminUsername: data.admin.username,
+          adminEmail: data.admin.email,
           password: data.admin.password,
         });
       },
@@ -94,20 +101,31 @@ export default function NewOrganizationScreen() {
       setError("Organization name is required.");
       return;
     }
-    if (form.adminUsername.trim().length < 2) {
-      setError("Admin username must be at least 2 characters.");
-      return;
-    }
     if (!form.adminName.trim()) {
       setError("Admin name is required.");
+      return;
+    }
+    const email = form.adminEmail.trim().toLowerCase();
+    const emailConfirm = form.adminEmailConfirm.trim().toLowerCase();
+    if (!email) {
+      setError("Admin email is required — it's the login credential.");
+      return;
+    }
+    if (!looksLikeEmail(email)) {
+      setError("That doesn't look like a valid email.");
+      return;
+    }
+    // Layer 3: double-entry catches fat-finger typos before they become a
+    // locked-out admin nobody can rescue without a password reset.
+    if (email !== emailConfirm) {
+      setError("The two email addresses don't match.");
       return;
     }
     createOrgMutation.mutate({
       data: {
         name: form.name.trim(),
-        adminUsername: form.adminUsername.trim(),
         adminName: form.adminName.trim(),
-        adminEmail: form.adminEmail.trim() || null,
+        adminEmail: email,
         // Cast: server validates against EQUIPMENT_TEMPLATES; spec restricts
         // to the closed enum so codegen narrows this field. We pass the
         // picked key through as-is.
@@ -169,22 +187,6 @@ export default function NewOrganizationScreen() {
         </Text>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Username *</Text>
-          <TextInput
-            style={styles.input}
-            value={form.adminUsername}
-            onChangeText={(v) =>
-              setForm((f) => ({ ...f, adminUsername: v }))
-            }
-            placeholder="e.g. burgerpalace_admin"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!submitting}
-          />
-        </View>
-
-        <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Display Name *</Text>
           <TextInput
             style={styles.input}
@@ -198,12 +200,31 @@ export default function NewOrganizationScreen() {
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Email (optional)</Text>
+          <Text style={styles.fieldLabel}>Email *</Text>
           <TextInput
             style={styles.input}
             value={form.adminEmail}
             onChangeText={(v) => setForm((f) => ({ ...f, adminEmail: v }))}
             placeholder="admin@example.com"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            editable={!submitting}
+          />
+          <Text style={styles.fieldHint}>
+            This is the admin&apos;s login. Double-check the spelling — a typo
+            here means they can&apos;t log in.
+          </Text>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Confirm Email *</Text>
+          <TextInput
+            style={styles.input}
+            value={form.adminEmailConfirm}
+            onChangeText={(v) => setForm((f) => ({ ...f, adminEmailConfirm: v }))}
+            placeholder="Re-enter email"
             placeholderTextColor={Colors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
@@ -315,9 +336,9 @@ export default function NewOrganizationScreen() {
             </Text>
 
             <View style={styles.credentialBox}>
-              <Text style={styles.credentialLabel}>Username</Text>
+              <Text style={styles.credentialLabel}>Email (login)</Text>
               <Text style={styles.credentialValue}>
-                {success?.adminUsername}
+                {success?.adminEmail}
               </Text>
             </View>
 
@@ -388,6 +409,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: "Inter_600SemiBold",
     marginBottom: 6,
+  },
+  fieldHint: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+    marginTop: 6,
   },
   input: {
     backgroundColor: Colors.surface,

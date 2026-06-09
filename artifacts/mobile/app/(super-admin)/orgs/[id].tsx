@@ -38,9 +38,15 @@ import Colors from "@/constants/colors";
 type PasswordModalData = {
   title: string;
   subtitle: string;
-  username: string;
+  email: string;
   password: string;
 };
+
+// Lightweight client-side email shape check — server has the authoritative
+// zod + MX validation.
+function looksLikeEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
 
 function formatCreatedAt(d: string | Date): string {
   const date = typeof d === "string" ? new Date(d) : d;
@@ -239,7 +245,7 @@ export default function OrganizationDetailScreen() {
 
   // ---- Admin add modal -------------------------------------------------------
   const [addAdminVisible, setAddAdminVisible] = useState(false);
-  const [adminForm, setAdminForm] = useState({ username: "", name: "", email: "" });
+  const [adminForm, setAdminForm] = useState({ name: "", email: "", emailConfirm: "" });
   const [adminError, setAdminError] = useState("");
 
   const createAdminMutation = useCreateOrgAdmin({
@@ -249,11 +255,11 @@ export default function OrganizationDetailScreen() {
         queryClient.invalidateQueries({ queryKey: getGetOrganizationQueryKey(orgId) });
         queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
         setAddAdminVisible(false);
-        setAdminForm({ username: "", name: "", email: "" });
+        setAdminForm({ name: "", email: "", emailConfirm: "" });
         setPasswordModal({
           title: "Admin Created",
           subtitle: `Save the password below — it will not be shown again.`,
-          username: data.username,
+          email: data.email,
           password: data.password,
         });
       },
@@ -269,20 +275,30 @@ export default function OrganizationDetailScreen() {
 
   const submitAdmin = () => {
     setAdminError("");
-    if (adminForm.username.trim().length < 2) {
-      setAdminError("Username must be at least 2 characters.");
-      return;
-    }
     if (!adminForm.name.trim()) {
       setAdminError("Display name is required.");
+      return;
+    }
+    const email = adminForm.email.trim().toLowerCase();
+    const emailConfirm = adminForm.emailConfirm.trim().toLowerCase();
+    if (!email) {
+      setAdminError("Email is required — it's the login credential.");
+      return;
+    }
+    if (!looksLikeEmail(email)) {
+      setAdminError("That doesn't look like a valid email.");
+      return;
+    }
+    // Layer 3: confirm email field catches fat-finger typos.
+    if (email !== emailConfirm) {
+      setAdminError("The two email addresses don't match.");
       return;
     }
     createAdminMutation.mutate({
       id: orgId,
       data: {
-        username: adminForm.username.trim(),
         name: adminForm.name.trim(),
-        email: adminForm.email.trim() || null,
+        email,
       },
     });
   };
@@ -294,16 +310,16 @@ export default function OrganizationDetailScreen() {
     mutation: {
       onSuccess: async (data, vars) => {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        const username =
+        const email =
           [...(org?.admins ?? []), ...(org?.supervisors ?? [])].find(
             (u) => u.id === vars.userId
-          )?.username ?? "user";
+          )?.email ?? "user";
         setResetTarget(null);
         setPasswordModal({
           title: "Password Reset",
           subtitle:
-            `New password for ${username}. All their existing sessions have been revoked.`,
-          username,
+            `New password for ${email}. All their existing sessions have been revoked.`,
+          email,
           password: data.password,
         });
       },
@@ -461,7 +477,7 @@ export default function OrganizationDetailScreen() {
           count={adminCount}
           actionLabel="Add"
           onAction={() => {
-            setAdminForm({ username: "", name: "", email: "" });
+            setAdminForm({ name: "", email: "", emailConfirm: "" });
             setAdminError("");
             setAddAdminVisible(true);
           }}
@@ -650,18 +666,6 @@ export default function OrganizationDetailScreen() {
         submitLabel="Create Admin"
       >
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Username *</Text>
-          <TextInput
-            style={styles.input}
-            value={adminForm.username}
-            onChangeText={(v) => setAdminForm((f) => ({ ...f, username: v }))}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholderTextColor={Colors.textTertiary}
-            editable={!createAdminMutation.isPending}
-          />
-        </View>
-        <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Display Name *</Text>
           <TextInput
             style={styles.input}
@@ -673,11 +677,26 @@ export default function OrganizationDetailScreen() {
           />
         </View>
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Email (optional)</Text>
+          <Text style={styles.fieldLabel}>Email *</Text>
           <TextInput
             style={styles.input}
             value={adminForm.email}
             onChangeText={(v) => setAdminForm((f) => ({ ...f, email: v }))}
+            placeholder="admin@example.com"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholderTextColor={Colors.textTertiary}
+            editable={!createAdminMutation.isPending}
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Confirm Email *</Text>
+          <TextInput
+            style={styles.input}
+            value={adminForm.emailConfirm}
+            onChangeText={(v) => setAdminForm((f) => ({ ...f, emailConfirm: v }))}
+            placeholder="Re-enter email"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
@@ -709,7 +728,7 @@ export default function OrganizationDetailScreen() {
               <Text style={{ fontWeight: "700", color: Colors.text }}>
                 {resetTarget?.name}
               </Text>{" "}
-              ({resetTarget?.username})? All of their existing sessions will be
+              ({resetTarget?.email})? All of their existing sessions will be
               revoked.
             </Text>
             <View style={styles.modalActions}>
@@ -765,8 +784,8 @@ export default function OrganizationDetailScreen() {
             </Text>
 
             <View style={styles.credentialBox}>
-              <Text style={styles.credentialLabel}>Username</Text>
-              <Text style={styles.credentialValue}>{passwordModal?.username}</Text>
+              <Text style={styles.credentialLabel}>Email (login)</Text>
+              <Text style={styles.credentialValue}>{passwordModal?.email}</Text>
             </View>
             <View style={styles.credentialBox}>
               <Text style={styles.credentialLabel}>Password</Text>
@@ -973,15 +992,14 @@ function UserRow({
       <View style={styles.rowLeft}>
         <Text style={styles.rowTitle}>{user.name}</Text>
         <Text style={styles.rowSub}>
-          {user.username}
-          {user.email ? ` · ${user.email}` : ""}
+          {user.email}
           {user.isActive ? "" : " · inactive"}
         </Text>
       </View>
       <TouchableOpacity
         onPress={onResetPassword}
         style={styles.rowAction}
-        accessibilityLabel={`Reset password for ${user.username}`}
+        accessibilityLabel={`Reset password for ${user.email}`}
       >
         <Feather name="key" size={16} color={Colors.warning} />
         <Text style={styles.rowActionText}>Reset</Text>

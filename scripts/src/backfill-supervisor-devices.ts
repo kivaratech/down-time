@@ -19,7 +19,7 @@ async function main() {
   const supervisors = await db
     .select({
       id: supervisorsTable.id,
-      username: supervisorsTable.username,
+      email: supervisorsTable.email,
       expoPushToken: supervisorsTable.expoPushToken,
     })
     .from(supervisorsTable)
@@ -44,14 +44,14 @@ async function main() {
         .returning({ id: supervisorDevicesTable.id });
 
       if (result.length > 0) {
-        console.log(`  ✓ Migrated token for ${s.username} (supervisor id=${s.id})`);
+        console.log(`  ✓ Migrated token for ${s.email} (supervisor id=${s.id})`);
         inserted++;
       } else {
-        console.log(`  · Already present for ${s.username} (supervisor id=${s.id})`);
+        console.log(`  · Already present for ${s.email} (supervisor id=${s.id})`);
         alreadyPresent++;
       }
     } catch (err) {
-      console.error(`  ✗ Failed for ${s.username}: ${err}`);
+      console.error(`  ✗ Failed for ${s.email}: ${err}`);
       failed++;
     }
   }

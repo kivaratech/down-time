@@ -23,9 +23,8 @@ import { useAuth } from "@/context/AuthContext";
 
 type UserRow = {
   id: number;
-  username: string;
   name: string;
-  email: string | null;
+  email: string;
   role: string;
   isActive: boolean;
   createdAt: string;
@@ -39,22 +38,29 @@ type Restaurant = {
 };
 
 type FormState = {
-  username: string;
   name: string;
   email: string;
+  emailConfirm: string;
   password: string;
   confirmPassword: string;
   role: "supervisor" | "admin";
 };
 
 const emptyForm = (): FormState => ({
-  username: "",
   name: "",
   email: "",
+  emailConfirm: "",
   password: "",
   confirmPassword: "",
   role: "supervisor",
 });
+
+// Lightweight client-side email shape check. The server has the
+// authoritative zod + MX validation; this just catches obvious mistakes
+// before a round trip.
+function looksLikeEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
 
 export default function UsersScreen() {
   const insets = useSafeAreaInsets();
@@ -119,9 +125,12 @@ export default function UsersScreen() {
   function openEdit(user: UserRow) {
     setEditingUser(user);
     setForm({
-      username: user.username,
       name: user.name,
-      email: user.email ?? "",
+      email: user.email,
+      // Pre-fill the confirm field on edit so the admin doesn't need to
+      // retype an unchanged email. The validator only re-checks the match
+      // when the email field is actually edited away from this value.
+      emailConfirm: user.email,
       password: "",
       confirmPassword: "",
       role: user.role as "supervisor" | "admin",
@@ -171,8 +180,22 @@ export default function UsersScreen() {
   }
 
   async function saveUser() {
-    if (!form.username.trim() || !form.name.trim()) {
-      setFormError("Username and name are required.");
+    if (!form.name.trim()) {
+      setFormError("Name is required.");
+      return;
+    }
+    const email = form.email.trim().toLowerCase();
+    const emailConfirm = form.emailConfirm.trim().toLowerCase();
+    if (!email) {
+      setFormError("Email is required — it's the login credential.");
+      return;
+    }
+    if (!looksLikeEmail(email)) {
+      setFormError("That doesn't look like a valid email.");
+      return;
+    }
+    if (email !== emailConfirm) {
+      setFormError("The two email addresses don't match.");
       return;
     }
     if (!editingUser && form.password.length < 6) {
@@ -188,11 +211,12 @@ export default function UsersScreen() {
     try {
       if (editingUser) {
         const body: Record<string, any> = {
-          username: form.username.trim(),
           name: form.name.trim(),
           role: form.role,
-          email: form.email.trim() || null,
         };
+        // Only send email if it actually changed — avoids triggering a
+        // redundant MX check and uniqueness lookup server-side.
+        if (email !== editingUser.email) body.email = email;
         await customFetch(`/api/admin/users/${editingUser.id}`, {
           method: "PATCH",
           body: JSON.stringify(body),
@@ -201,20 +225,19 @@ export default function UsersScreen() {
         fetchData();
         Alert.alert("Saved", `${form.name.trim()}'s account has been updated.`);
       } else {
-        const body: Record<string, any> = {
-          username: form.username.trim(),
+        const body = {
           name: form.name.trim(),
+          email,
           password: form.password,
           role: form.role,
         };
-        if (form.email.trim()) body.email = form.email.trim();
         await customFetch("/api/admin/users", {
           method: "POST",
           body: JSON.stringify(body),
         });
         setFormVisible(false);
         fetchData();
-        Alert.alert("Account Created", `${form.name.trim()} can now log in with username "${form.username.trim()}".`);
+        Alert.alert("Account Created", `${form.name.trim()} can now log in with "${email}".`);
       }
     } catch (err: any) {
       const message = err?.data?.error ?? err?.message ?? "Something went wrong.";
@@ -369,23 +392,24 @@ export default function UsersScreen() {
               autoCapitalize="words"
             />
 
-            <Text style={styles.fieldLabel}>Username *</Text>
-            <TextInput
-              style={styles.input}
-              value={form.username}
-              onChangeText={(v) => setForm((f) => ({ ...f, username: v.toLowerCase().replace(/\s/g, "") }))}
-              placeholder="e.g. jsmith"
-              placeholderTextColor={Colors.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Text style={styles.fieldLabel}>Email (optional)</Text>
+            <Text style={styles.fieldLabel}>Email *</Text>
             <TextInput
               style={styles.input}
               value={form.email}
               onChangeText={(v) => setForm((f) => ({ ...f, email: v }))}
               placeholder="e.g. jsmith@example.com"
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoCorrect={false}
+            />
+
+            <Text style={styles.fieldLabel}>Confirm Email *</Text>
+            <TextInput
+              style={styles.input}
+              value={form.emailConfirm}
+              onChangeText={(v) => setForm((f) => ({ ...f, emailConfirm: v }))}
+              placeholder="Re-enter email"
               placeholderTextColor={Colors.textTertiary}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -618,8 +642,7 @@ function UserCard({
               </Text>
             </View>
           </View>
-          <Text style={styles.cardUsername}>@{user.username}</Text>
-          {!!user.email && <Text style={styles.cardEmail}>{user.email}</Text>}
+          <Text style={styles.cardEmail}>{user.email}</Text>
 
           {assignedRestaurants.length > 0 && (
             <View style={styles.storeChipsRow}>

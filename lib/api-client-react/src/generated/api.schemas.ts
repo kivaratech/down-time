@@ -34,7 +34,7 @@ export interface RestaurantLoginResponse {
 }
 
 export interface SupervisorLoginRequest {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -49,7 +49,7 @@ export const SupervisorRole = {
 
 export interface Supervisor {
   id: number;
-  username: string;
+  email: string;
   name: string;
   role: SupervisorRole;
   /** Null only for super_admin accounts. */
@@ -264,9 +264,8 @@ export const OrgUserRole = {
 
 export interface OrgUser {
   id: number;
-  username: string;
+  email: string;
   name: string;
-  email: string | null;
   role: OrgUserRole;
   isActive: boolean;
   createdAt: string;
@@ -302,24 +301,20 @@ export interface CreateOrganizationRequest {
    * @maxLength 200
    */
   name: string;
-  /**
-   * @minLength 2
-   * @maxLength 50
-   */
-  adminUsername: string;
+  /** Email of the first admin (globally unique; used for login). */
+  adminEmail: string;
   /**
    * @minLength 1
    * @maxLength 100
    */
   adminName: string;
-  adminEmail?: string | null;
   /** Equipment template to seed. Defaults to "generic" when omitted. */
   templateKey?: CreateOrganizationRequestTemplateKey;
 }
 
 export interface OrgAdminWithPassword {
   id: number;
-  username: string;
+  email: string;
   name: string;
   /** Plaintext password. Shown exactly once. */
   password: string;
@@ -331,17 +326,12 @@ export interface CreateOrganizationResponse {
 }
 
 export interface CreateOrgAdminRequest {
-  /**
-   * @minLength 2
-   * @maxLength 50
-   */
-  username: string;
+  email: string;
   /**
    * @minLength 1
    * @maxLength 100
    */
   name: string;
-  email?: string | null;
 }
 
 export interface CreateOrgRestaurantRequest {

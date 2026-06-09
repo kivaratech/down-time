@@ -5,11 +5,13 @@ import { logger } from "./logger";
 import crypto from "crypto";
 
 const DEFAULT_ORG_NAME = "DownTime";
-const SUPER_ADMIN_USERNAME = "superadmin";
+const SUPER_ADMIN_EMAIL = "superadmin@downtime.local";
 
+// Seed emails use the .local TLD so MX validation (production code path)
+// will reject them in real usage — these are only created in an empty DB.
 const SEED_SUPERVISOR_TEMPLATES = [
-  { username: "admin", name: "Admin", role: "admin" as const },
-  { username: "supervisor", name: "Supervisor", role: "supervisor" as const },
+  { email: "admin@downtime.local", name: "Admin", role: "admin" as const },
+  { email: "supervisor@downtime.local", name: "Supervisor", role: "supervisor" as const },
 ];
 
 const SEED_RESTAURANTS = [
@@ -47,26 +49,26 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
         const password = crypto.randomBytes(10).toString("base64url");
         await db.insert(supervisorsTable).values({
           organizationId: orgId,
-          username: sup.username,
+          email: sup.email,
           passwordHash: hashPassword(password),
           name: sup.name,
           role: sup.role,
           isActive: true,
         });
-        logger.info({ username: sup.username, password }, "Seeded supervisor — save this password, it will not be shown again");
+        logger.info({ email: sup.email, password }, "Seeded supervisor — save this password, it will not be shown again");
       }
 
       // Platform super_admin operates across all orgs, so it has no organization.
       const superPassword = crypto.randomBytes(10).toString("base64url");
       await db.insert(supervisorsTable).values({
         organizationId: null,
-        username: SUPER_ADMIN_USERNAME,
+        email: SUPER_ADMIN_EMAIL,
         passwordHash: hashPassword(superPassword),
         name: "Platform Super Admin",
         role: "super_admin",
         isActive: true,
       });
-      logger.info({ username: SUPER_ADMIN_USERNAME, password: superPassword }, "Seeded super_admin — save this password, it will not be shown again");
+      logger.info({ email: SUPER_ADMIN_EMAIL, password: superPassword }, "Seeded super_admin — save this password, it will not be shown again");
 
       logger.info({ count: SEED_SUPERVISOR_TEMPLATES.length + 1 }, "Supervisors seeded");
     } else {

@@ -13,17 +13,13 @@ export interface CreateOrganizationRequest {
    * @maxLength 200
    */
   name: string;
-  /**
-   * @minLength 2
-   * @maxLength 50
-   */
-  adminUsername: string;
+  /** Email of the first admin (globally unique; used for login). */
+  adminEmail: string;
   /**
    * @minLength 1
    * @maxLength 100
    */
   adminName: string;
-  adminEmail?: string | null;
   /** Equipment template to seed. Defaults to "generic" when omitted. */
   templateKey?: CreateOrganizationRequestTemplateKey;
 }

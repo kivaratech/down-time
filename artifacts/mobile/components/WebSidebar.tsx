@@ -78,12 +78,12 @@ export default function WebSidebar() {
         <View style={styles.userRow}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {(supervisor?.name || supervisor?.username || "U").charAt(0).toUpperCase()}
+              {(supervisor?.name || supervisor?.email || "U").charAt(0).toUpperCase()}
             </Text>
           </View>
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>
-              {supervisor?.name || supervisor?.username || "User"}
+              {supervisor?.name || supervisor?.email || "User"}
             </Text>
             <Text style={styles.userRole}>
               {supervisor?.role === "admin" ? "Administrator" : "Supervisor"}

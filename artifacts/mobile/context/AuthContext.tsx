@@ -29,7 +29,7 @@ export type Restaurant = {
 
 export type Supervisor = {
   id: number;
-  username: string;
+  email: string;
   name: string;
   // "super_admin" is the platform-level role with no organization. The mobile
   // UI currently lands super_admins on the same screens as supervisors until
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
             const fresh: Supervisor = {
               id: meResponse.supervisor.id,
-              username: meResponse.supervisor.username,
+              email: meResponse.supervisor.email,
               name: meResponse.supervisor.name,
               role,
               organizationId: meResponse.supervisor.organizationId,

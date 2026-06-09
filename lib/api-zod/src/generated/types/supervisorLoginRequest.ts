@@ -7,6 +7,6 @@
  */
 
 export interface SupervisorLoginRequest {
-  username: string;
+  email: string;
   password: string;
 }

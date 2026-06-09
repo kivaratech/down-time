@@ -22,6 +22,7 @@ import {
   type EquipmentTemplateKey,
 } from "@workspace/db/equipment-templates";
 import { hashPassword, requireSuperAdmin } from "../lib/auth";
+import { validateEmailMx } from "../lib/emailValidation";
 import { deleteObjectByKey, deleteObjectsByOrgPrefix } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 
@@ -110,12 +111,10 @@ router.get("/super-admin/organizations", async (req, res) => {
 // ---------------------------------------------------------------------------
 const CreateOrganizationBody = z.object({
   name: z.string().min(1).max(200),
-  adminUsername: z.string().min(2).max(50),
   adminName: z.string().min(1).max(100),
-  // .nullish() = .nullable().optional(). Accepts string | null | undefined.
-  // The openapi spec marks this field nullable:true and the mobile form
-  // sends `... || null` when blank — a plain .optional() would 400 on null.
-  adminEmail: z.string().email().nullish(),
+  // Email is REQUIRED now — it's the login credential. Format validation by
+  // Zod here; MX validation runs below as the second gate.
+  adminEmail: z.string().email(),
   // Permissive zod + runtime check against EQUIPMENT_TEMPLATES so adding a
   // new template only requires updating the registry (and the openapi enum
   // for documentation/codegen). Otherwise we'd have to update three places.
@@ -132,7 +131,26 @@ router.post("/super-admin/organizations", async (req, res) => {
     return;
   }
 
-  const { name, adminUsername, adminName, adminEmail, templateKey } = body.data;
+  const { name, adminName, templateKey } = body.data;
+  const adminEmail = body.data.adminEmail.trim().toLowerCase();
+
+  // Layer 2: MX record check.
+  const mx = await validateEmailMx(adminEmail);
+  if (!mx.ok) {
+    res.status(400).json({ error: mx.reason });
+    return;
+  }
+
+  // Globally unique email — pre-check for a friendly 409 before the tx.
+  const [emailTaken] = await db
+    .select({ id: supervisorsTable.id })
+    .from(supervisorsTable)
+    .where(eq(supervisorsTable.email, adminEmail))
+    .limit(1);
+  if (emailTaken) {
+    res.status(409).json({ error: "An account with this email already exists" });
+    return;
+  }
   const key = (templateKey ?? DEFAULT_EQUIPMENT_TEMPLATE_KEY) as EquipmentTemplateKey;
   const template = EQUIPMENT_TEMPLATES[key];
   if (!template) {
@@ -162,10 +180,9 @@ router.post("/super-admin/organizations", async (req, res) => {
         .insert(supervisorsTable)
         .values({
           organizationId: org.id,
-          username: adminUsername,
+          email: adminEmail,
           passwordHash,
           name: adminName,
-          email: adminEmail ?? null,
           role: "admin",
         })
         .returning();
@@ -181,17 +198,16 @@ router.post("/super-admin/organizations", async (req, res) => {
       },
       admin: {
         id: result.admin.id,
-        username: result.admin.username,
+        email: result.admin.email,
         name: result.admin.name,
         password,
       },
     });
   } catch (err: unknown) {
-    // 23505 = postgres unique_violation. Effectively impossible for a brand-new
-    // org (the supervisor unique index is per (organizationId, username)) but
-    // handle defensively in case of races or future schema changes.
+    // 23505 = postgres unique_violation. The pre-check above is racy under
+    // concurrent identical requests; this handles the narrow window.
     if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
-      res.status(409).json({ error: "Username already taken" });
+      res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
     throw err;
@@ -237,7 +253,6 @@ router.get("/super-admin/organizations/:id", async (req, res) => {
   const users = await db
     .select({
       id: supervisorsTable.id,
-      username: supervisorsTable.username,
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,
@@ -639,11 +654,9 @@ router.delete("/super-admin/organizations/:id/restaurants/:restaurantId", async 
 // Add another admin to an existing org. Returns plaintext password once.
 // ---------------------------------------------------------------------------
 const CreateOrgAdminBody = z.object({
-  username: z.string().min(2).max(50),
   name: z.string().min(1).max(100),
-  // .nullish() matches the openapi nullable:true field and the mobile form
-  // which sends `email: form.email.trim() || null` when blank.
-  email: z.string().email().nullish(),
+  // Email is the login credential — required + must pass MX check below.
+  email: z.string().email(),
 });
 
 router.post("/super-admin/organizations/:id/admins", async (req, res) => {
@@ -662,6 +675,15 @@ router.post("/super-admin/organizations/:id/admins", async (req, res) => {
     return;
   }
 
+  const email = body.data.email.trim().toLowerCase();
+
+  // Layer 2: MX validation.
+  const mx = await validateEmailMx(email);
+  if (!mx.ok) {
+    res.status(400).json({ error: mx.reason });
+    return;
+  }
+
   const [org] = await db
     .select({ id: organizationsTable.id })
     .from(organizationsTable)
@@ -672,20 +694,14 @@ router.post("/super-admin/organizations/:id/admins", async (req, res) => {
     return;
   }
 
-  // Per-org uniqueness check (matches the composite (organizationId, username)
-  // unique index added in Phase 2 PR-3).
+  // Global email uniqueness — matches the supervisors_email_unique index.
   const [existing] = await db
     .select({ id: supervisorsTable.id })
     .from(supervisorsTable)
-    .where(
-      and(
-        eq(supervisorsTable.organizationId, id),
-        eq(supervisorsTable.username, body.data.username),
-      ),
-    )
+    .where(eq(supervisorsTable.email, email))
     .limit(1);
   if (existing) {
-    res.status(409).json({ error: "Username already taken in this organization" });
+    res.status(409).json({ error: "An account with this email already exists" });
     return;
   }
 
@@ -698,10 +714,9 @@ router.post("/super-admin/organizations/:id/admins", async (req, res) => {
       .insert(supervisorsTable)
       .values({
         organizationId: id,
-        username: body.data.username,
+        email,
         passwordHash,
         name: body.data.name,
-        email: body.data.email ?? null,
         role: "admin",
       })
       .returning();
@@ -715,7 +730,7 @@ router.post("/super-admin/organizations/:id/admins", async (req, res) => {
       err !== null &&
       (err as { code?: string }).code === "23505"
     ) {
-      res.status(409).json({ error: "Username already taken in this organization" });
+      res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
     throw err;
@@ -723,7 +738,7 @@ router.post("/super-admin/organizations/:id/admins", async (req, res) => {
 
   res.status(201).json({
     id: newAdmin.id,
-    username: newAdmin.username,
+    email: newAdmin.email,
     name: newAdmin.name,
     password,
   });

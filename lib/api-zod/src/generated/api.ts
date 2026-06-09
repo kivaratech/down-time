@@ -35,7 +35,7 @@ export const RestaurantLoginResponse = zod.object({
  * @summary Supervisor login
  */
 export const SupervisorLoginBody = zod.object({
-  username: zod.string(),
+  email: zod.string().email(),
   password: zod.string(),
 });
 
@@ -43,7 +43,7 @@ export const SupervisorLoginResponse = zod.object({
   token: zod.string(),
   supervisor: zod.object({
     id: zod.number(),
-    username: zod.string(),
+    email: zod.string().email(),
     name: zod.string(),
     role: zod.enum(["supervisor", "admin", "super_admin"]),
     organizationId: zod
@@ -76,7 +76,7 @@ export const GetMeResponse = zod.object({
   supervisor: zod
     .object({
       id: zod.number(),
-      username: zod.string(),
+      email: zod.string().email(),
       name: zod.string(),
       role: zod.enum(["supervisor", "admin", "super_admin"]),
       organizationId: zod
@@ -380,19 +380,15 @@ export const ListOrganizationsResponse = zod.array(
  */
 export const createOrganizationBodyNameMax = 200;
 
-export const createOrganizationBodyAdminUsernameMin = 2;
-export const createOrganizationBodyAdminUsernameMax = 50;
-
 export const createOrganizationBodyAdminNameMax = 100;
 
 export const CreateOrganizationBody = zod.object({
   name: zod.string().min(1).max(createOrganizationBodyNameMax),
-  adminUsername: zod
+  adminEmail: zod
     .string()
-    .min(createOrganizationBodyAdminUsernameMin)
-    .max(createOrganizationBodyAdminUsernameMax),
+    .email()
+    .describe("Email of the first admin (globally unique; used for login)."),
   adminName: zod.string().min(1).max(createOrganizationBodyAdminNameMax),
-  adminEmail: zod.string().nullish(),
   templateKey: zod
     .enum(["generic", "mcdonalds"])
     .optional()
@@ -427,9 +423,8 @@ export const GetOrganizationResponse = zod
       admins: zod.array(
         zod.object({
           id: zod.number(),
-          username: zod.string(),
+          email: zod.string().email(),
           name: zod.string(),
-          email: zod.string().nullable(),
           role: zod.enum(["supervisor", "admin"]),
           isActive: zod.boolean(),
           createdAt: zod.date(),
@@ -438,9 +433,8 @@ export const GetOrganizationResponse = zod
       supervisors: zod.array(
         zod.object({
           id: zod.number(),
-          username: zod.string(),
+          email: zod.string().email(),
           name: zod.string(),
-          email: zod.string().nullable(),
           role: zod.enum(["supervisor", "admin"]),
           isActive: zod.boolean(),
           createdAt: zod.date(),
@@ -534,18 +528,11 @@ export const CreateOrgAdminParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const createOrgAdminBodyUsernameMin = 2;
-export const createOrgAdminBodyUsernameMax = 50;
-
 export const createOrgAdminBodyNameMax = 100;
 
 export const CreateOrgAdminBody = zod.object({
-  username: zod
-    .string()
-    .min(createOrgAdminBodyUsernameMin)
-    .max(createOrgAdminBodyUsernameMax),
+  email: zod.string().email(),
   name: zod.string().min(1).max(createOrgAdminBodyNameMax),
-  email: zod.string().nullish(),
 });
 
 /**

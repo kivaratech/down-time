@@ -133,9 +133,9 @@ const PRIVACY_HTML = `<!DOCTYPE html>
       <p>We collect only the data needed to operate the service:</p>
       <ul>
         <li>
-          <strong>Account information:</strong> username, display name, role
-          (admin / supervisor / restaurant device), and an optional email
-          address, provided when an organization admin or platform
+          <strong>Account information:</strong> email address (used as your
+          login), display name, and role (admin / supervisor / restaurant
+          device), provided when an organization admin or platform
           super-admin creates the account.
         </li>
         <li>
@@ -503,7 +503,7 @@ const DATA_DELETION_HTML = `<!DOCTYPE html>
           <tr><th>Data type</th><th>Deleted?</th></tr>
         </thead>
         <tbody>
-          <tr><td>Your username, display name, email</td><td>Yes — permanently</td></tr>
+          <tr><td>Your email, display name</td><td>Yes — permanently</td></tr>
           <tr><td>Your password hash</td><td>Yes — permanently</td></tr>
           <tr><td>Your push notification tokens</td><td>Yes — permanently</td></tr>
           <tr><td>Your active sessions</td><td>Yes — immediately revoked</td></tr>

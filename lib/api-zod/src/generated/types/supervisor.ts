@@ -9,7 +9,7 @@ import type { SupervisorRole } from "./supervisorRole";
 
 export interface Supervisor {
   id: number;
-  username: string;
+  email: string;
   name: string;
   role: SupervisorRole;
   /** Null only for super_admin accounts. */

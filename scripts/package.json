@@ -11,6 +11,7 @@
     "wipe-org-issues": "tsx ./src/wipe-org-issues.ts",
     "migrate-phase2-pr3": "tsx ./src/migrate-phase2-pr3.ts",
     "reset-passwords": "tsx ./src/reset-passwords.ts",
+    "migrate-to-email-login": "tsx ./src/migrate-to-email-login.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
