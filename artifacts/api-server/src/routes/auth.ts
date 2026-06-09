@@ -20,11 +20,56 @@ import {
 } from "../lib/auth";
 import { SupervisorLoginBody } from "@workspace/api-zod";
 import crypto from "crypto";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const router: IRouter = Router();
 
+// Rate limit for the supervisor login endpoint. Email is now the login
+// credential and emails are inherently guessable, so the brute-force
+// surface is bigger than it was with per-org usernames. 5 failed
+// attempts per (email, IP) in 15 minutes is the same shape Google uses
+// for consumer login: real users typing wrong stay fine; an attacker
+// gets shut down within seconds.
+//
+// `skipSuccessfulRequests` (v7 semantic: skip when status < 400) means a
+// successful login doesn't count against the limit — only 401s do. A
+// user with the wrong password 4 times who then gets it right keeps a
+// clean slate.
+//
+// Keyed on (email + IP):
+// - Email alone would let one bad actor lock out a real user.
+// - IP alone would let two people behind the same NAT lock each other
+//   out, and would let an attacker rotate IPs to bypass.
+// - Combined: an attacker can't burn through a target email's budget
+//   from a single IP, and switching IPs only buys them another 5
+//   attempts against THAT email — quickly noticeable in logs.
+//
+// In-memory counter (default). Single-instance only — if this app ever
+// scales to multiple Railway replicas, swap the store for one backed by
+// Redis or the DB. Otherwise an attacker can round-robin the replicas
+// to multiply their budget.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "";
+    // ipKeyGenerator handles IPv6 properly (collapses /64 prefix). Using
+    // req.ip directly would let an IPv6 attacker get a fresh budget per
+    // address inside their /64, which is effectively unlimited.
+    return `${email}|${ipKeyGenerator(req.ip ?? "")}`;
+  },
+  message: {
+    error: "Too many login attempts. Please wait 15 minutes and try again.",
+  },
+});
+
 // POST /api/auth/supervisor/login — works for both admin and supervisor roles
-router.post("/auth/supervisor/login", async (req, res) => {
+router.post("/auth/supervisor/login", loginLimiter, async (req, res) => {
   const body = SupervisorLoginBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: "Email and password are required" });

@@ -8,6 +8,19 @@ import { principalMiddleware } from "./middleware/principal";
 
 const app: Express = express();
 
+// Trust the first proxy hop so `req.ip` reflects the client's address
+// instead of Railway's reverse proxy. Critical for the login rate limiter
+// (lib express-rate-limit keys on req.ip): without this, every request
+// appears to come from the same proxy IP and one user hitting the limit
+// would lock out everyone behind that proxy — and an attacker could lock
+// out all legitimate logins with a few hundred bad requests.
+//
+// Value is `1` not `true` because `true` trusts the ENTIRE x-forwarded-for
+// chain, which lets an attacker spoof their client IP by injecting their
+// own header. `1` trusts exactly one upstream hop (Railway's proxy), which
+// is the topology in production.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
