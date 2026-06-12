@@ -247,12 +247,16 @@ export default function UsersScreen() {
     }
   }
 
-  async function doDeleteUser() {
+  async function doToggleUser() {
     if (!confirmUser) return;
     const user = confirmUser;
     setToggling(true);
     try {
-      await customFetch(`/api/admin/users/${user.id}/deactivate`, { method: "POST" });
+      // "Delete" was always a soft deactivate server-side; the UI now says
+      // so honestly and offers the reverse path. Reactivated users keep
+      // their existing password.
+      const action = user.isActive ? "deactivate" : "activate";
+      await customFetch(`/api/admin/users/${user.id}/${action}`, { method: "POST" });
       setConfirmUser(null);
       fetchData();
     } catch (err: any) {
@@ -514,7 +518,7 @@ export default function UsersScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Delete User Confirmation Modal */}
+      {/* Deactivate / Reactivate Confirmation Modal */}
       <Modal
         visible={!!confirmUser}
         transparent
@@ -523,9 +527,13 @@ export default function UsersScreen() {
       >
         <View style={styles.overlay}>
           <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>Delete Account</Text>
+            <Text style={styles.confirmTitle}>
+              {confirmUser?.isActive ? "Deactivate Account" : "Reactivate Account"}
+            </Text>
             <Text style={styles.confirmBody}>
-              {confirmUser?.name} will be permanently deleted. Their sessions will be signed out. This cannot be undone.
+              {confirmUser?.isActive
+                ? `${confirmUser?.name} will no longer be able to log in, and their sessions will be signed out. You can reactivate them later — their password is kept.`
+                : `${confirmUser?.name} will be able to log in again with their existing password.`}
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity
@@ -536,14 +544,19 @@ export default function UsersScreen() {
                 <Text style={styles.confirmCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmConfirm, styles.confirmDanger]}
-                onPress={doDeleteUser}
+                style={[
+                  styles.confirmConfirm,
+                  confirmUser?.isActive ? styles.confirmDanger : styles.confirmSuccess,
+                ]}
+                onPress={doToggleUser}
                 disabled={toggling}
               >
                 {toggling ? (
                   <ActivityIndicator color={Colors.surface} size="small" />
                 ) : (
-                  <Text style={styles.confirmConfirmText}>Delete</Text>
+                  <Text style={styles.confirmConfirmText}>
+                    {confirmUser?.isActive ? "Deactivate" : "Reactivate"}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -626,7 +639,7 @@ function UserCard({
   const assignedRestaurants = restaurants.filter((r) => (user.restaurantIds ?? []).includes(r.id));
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, !user.isActive && styles.cardInactive]}>
       <View style={styles.cardTop}>
         <View style={styles.cardInfo}>
           <View style={styles.cardNameRow}>
@@ -641,6 +654,11 @@ function UserCard({
                 {user.role}
               </Text>
             </View>
+            {!user.isActive && (
+              <View style={styles.inactiveBadge}>
+                <Text style={styles.inactiveBadgeText}>Inactive</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.cardEmail}>{user.email}</Text>
 
@@ -674,13 +692,23 @@ function UserCard({
         </TouchableOpacity>
 
         {!isSelf && (
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnDanger]}
-            onPress={onToggleActive}
-          >
-            <Feather name="trash-2" size={15} color={Colors.accent} />
-            <Text style={[styles.actionBtnText, { color: Colors.accent }]}>Delete</Text>
-          </TouchableOpacity>
+          user.isActive ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnDanger]}
+              onPress={onToggleActive}
+            >
+              <Feather name="user-x" size={15} color={Colors.accent} />
+              <Text style={[styles.actionBtnText, { color: Colors.accent }]}>Deactivate</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnSuccess]}
+              onPress={onToggleActive}
+            >
+              <Feather name="user-check" size={15} color={Colors.success} />
+              <Text style={[styles.actionBtnText, { color: Colors.success }]}>Reactivate</Text>
+            </TouchableOpacity>
+          )
         )}
       </View>
     </View>
