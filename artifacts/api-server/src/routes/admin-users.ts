@@ -14,7 +14,11 @@ const router: IRouter = Router();
  */
 async function findUserInAdminOrg(userId: number, adminOrgId: number) {
   const [u] = await db
-    .select({ id: supervisorsTable.id, role: supervisorsTable.role })
+    .select({
+      id: supervisorsTable.id,
+      role: supervisorsTable.role,
+      isActive: supervisorsTable.isActive,
+    })
     .from(supervisorsTable)
     .where(
       and(
@@ -237,6 +241,54 @@ router.post("/admin/users/:id/deactivate", async (req, res) => {
     .where(eq(supervisorsTable.id, id));
 
   await db.delete(supervisorSessionsTable).where(eq(supervisorSessionsTable.supervisorId, id));
+
+  res.json({ success: true });
+});
+
+// DELETE /api/admin/users/:id — permanently delete a DEACTIVATED user (same org).
+// Two-step on purpose: deactivate first (freeze, reversible), then delete
+// (permanent). Blocking delete on active users prevents one accidental tap
+// from destroying an account. Deleting frees the user's email for reuse —
+// emails are globally unique, so a deactivated row otherwise locks the
+// address forever.
+router.delete("/admin/users/:id", async (req, res) => {
+  const admin = requireOrgAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  if (id === admin.supervisorId) {
+    res.status(400).json({ error: "You cannot delete your own account" });
+    return;
+  }
+
+  const target = await findUserInAdminOrg(id, admin.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (target.isActive) {
+    res.status(400).json({ error: "Deactivate the user before deleting them" });
+    return;
+  }
+
+  // Cascade: sessions and restaurant assignments have no FK action, so
+  // delete them explicitly. supervisor_devices has ON DELETE CASCADE and
+  // notification_attempts.supervisor_id is ON DELETE SET NULL (keeps the
+  // notification history), so both self-clean.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(supervisorSessionsTable)
+      .where(eq(supervisorSessionsTable.supervisorId, id));
+    await tx
+      .delete(supervisorRestaurantsTable)
+      .where(eq(supervisorRestaurantsTable.supervisorId, id));
+    await tx.delete(supervisorsTable).where(eq(supervisorsTable.id, id));
+  });
 
   res.json({ success: true });
 });

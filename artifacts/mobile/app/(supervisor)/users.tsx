@@ -87,6 +87,9 @@ export default function UsersScreen() {
   const [confirmUser, setConfirmUser] = useState<UserRow | null>(null);
   const [toggling, setToggling] = useState(false);
 
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const [storeModalUser, setStoreModalUser] = useState<UserRow | null>(null);
   const [storeSelection, setStoreSelection] = useState<Set<number>>(new Set());
   const [storeSaving, setStoreSaving] = useState(false);
@@ -267,6 +270,21 @@ export default function UsersScreen() {
     }
   }
 
+  async function doDeleteUser() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await customFetch(`/api/admin/users/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err: any) {
+      setDeleteTarget(null);
+      Alert.alert("Error", err?.data?.error ?? err?.message ?? "Something went wrong.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function openResetPassword(user: UserRow) {
     setResetTargetUser(user);
     setNewPassword("");
@@ -340,6 +358,7 @@ export default function UsersScreen() {
               currentSupervisorId={supervisor?.id ?? -1}
               onEdit={() => openEdit(item)}
               onToggleActive={() => setConfirmUser(item)}
+              onDelete={() => setDeleteTarget(item)}
               onResetPassword={() => openResetPassword(item)}
               onManageStores={() => openManageStores(item)}
             />
@@ -564,6 +583,47 @@ export default function UsersScreen() {
         </View>
       </Modal>
 
+      {/* Permanent Delete Confirmation Modal */}
+      <Modal
+        visible={!!deleteTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Delete Permanently</Text>
+            <Text style={styles.confirmBody}>
+              {deleteTarget?.name} ({deleteTarget?.email}) will be permanently
+              deleted. This cannot be undone. Their email becomes available
+              for a new account.
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmConfirm, styles.confirmDanger]}
+                onPress={doDeleteUser}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator color={Colors.surface} size="small" />
+                ) : (
+                  <Text style={styles.confirmConfirmText}>Delete Forever</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Manage Stores Modal */}
       <Modal
         visible={!!storeModalUser}
@@ -622,6 +682,7 @@ type UserCardProps = {
   currentSupervisorId: number;
   onEdit: () => void;
   onToggleActive: () => void;
+  onDelete: () => void;
   onResetPassword: () => void;
   onManageStores: () => void;
 };
@@ -632,6 +693,7 @@ function UserCard({
   currentSupervisorId,
   onEdit,
   onToggleActive,
+  onDelete,
   onResetPassword,
   onManageStores,
 }: UserCardProps) {
@@ -701,13 +763,22 @@ function UserCard({
               <Text style={[styles.actionBtnText, { color: Colors.accent }]}>Deactivate</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSuccess]}
-              onPress={onToggleActive}
-            >
-              <Feather name="user-check" size={15} color={Colors.success} />
-              <Text style={[styles.actionBtnText, { color: Colors.success }]}>Reactivate</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnSuccess]}
+                onPress={onToggleActive}
+              >
+                <Feather name="user-check" size={15} color={Colors.success} />
+                <Text style={[styles.actionBtnText, { color: Colors.success }]}>Reactivate</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnDanger]}
+                onPress={onDelete}
+              >
+                <Feather name="trash-2" size={15} color={Colors.accent} />
+                <Text style={[styles.actionBtnText, { color: Colors.accent }]}>Delete</Text>
+              </TouchableOpacity>
+            </>
           )
         )}
       </View>
