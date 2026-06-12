@@ -75,8 +75,13 @@ export default function LoginScreen() {
       // Group routes aren't in the typed-routes Href union — cast through.
       const target = role === "super_admin" ? "/(super-admin)" : "/(supervisor)";
       router.replace(target as Href);
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err) {
+      // Surface the server's actual message when there is one. A blanket
+      // "Invalid email or password" hides rate-limit lockouts (429) and
+      // deactivated accounts (403) — the user retries a correct password
+      // forever and burns through the rate limit budget for nothing.
+      const serverMessage = (err as { data?: { error?: string } })?.data?.error;
+      setError(serverMessage ?? "Invalid email or password.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
