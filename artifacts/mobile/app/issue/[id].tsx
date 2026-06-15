@@ -32,6 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
+import { formatTimestamp } from "@/lib/formatDateTime";
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -421,6 +422,7 @@ export default function IssueDetailScreen() {
                   <Text style={styles.commentAuthor}>{c.authorName ?? "Anonymous"}</Text>
                   <Text style={styles.commentTime}>{getTimeLabel(c.createdAt)}</Text>
                 </View>
+                <Text style={styles.commentTimestamp}>{formatTimestamp(c.createdAt)}</Text>
                 <Text style={styles.commentText}>{c.body}</Text>
               </View>
             </View>
@@ -844,6 +846,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textTertiary,
     fontFamily: "Inter_400Regular",
+  },
+  commentTimestamp: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 4,
   },
   commentText: {
     fontSize: 15,

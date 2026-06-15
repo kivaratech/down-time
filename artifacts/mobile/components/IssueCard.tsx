@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { formatTimestamp } from "@/lib/formatDateTime";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -130,7 +131,10 @@ export default function IssueCard({ issue, showRestaurant }: Props) {
       </View>
 
       <View style={styles.cardFooter}>
-        <Text style={styles.age}>{getAgeLabel(issue.createdAt)}</Text>
+        <View style={styles.footerLeft}>
+          <Text style={styles.age}>{getAgeLabel(issue.createdAt)}</Text>
+          <Text style={styles.timestamp}>{formatTimestamp(issue.createdAt)}</Text>
+        </View>
         <View style={styles.footerRight}>
           {issue.assignedTo && (
             <View style={styles.assignedRow}>
@@ -252,10 +256,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  footerLeft: {
+    flex: 1,
+  },
   age: {
     fontSize: 13,
     color: Colors.textTertiary,
     fontFamily: "Inter_400Regular",
+  },
+  timestamp: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
   },
   footerRight: {
     flexDirection: "row",
