@@ -1051,8 +1051,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    // Reduced horizontal padding compensates for the new padding on the
+    // Cancel/Save buttons so the text stays near the edges; extra top
+    // padding nudges the whole row down from the very top of the sheet.
+    paddingHorizontal: 12,
+    paddingTop: 26,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -1062,14 +1066,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.text,
   },
+  // Padding lives on the Text so it grows the TouchableOpacity's tap area —
+  // bigger, easier-to-hit Cancel/Save targets without changing the layout.
   cancelText: {
-    fontSize: 16,
+    fontSize: 17,
     color: Colors.textSecondary,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   saveText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
     color: Colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   modalBody: {
     flex: 1,

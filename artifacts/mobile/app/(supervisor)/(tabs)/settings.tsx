@@ -368,8 +368,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    // See users.tsx: smaller horizontal padding offsets the button padding,
+    // extra top padding moves the row down from the top of the sheet.
+    paddingHorizontal: 12,
+    paddingTop: 26,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -378,15 +381,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
+  // Padding on the Text grows the TouchableOpacity tap area — bigger, easier
+  // Cancel/Save targets.
   cancelText: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   saveText: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: "Inter_600SemiBold",
     color: Colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   modalBody: {
     flex: 1,

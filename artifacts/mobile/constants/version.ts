@@ -7,4 +7,4 @@
 // starts a NEW update train that existing installs (built on 1.0.0) would
 // never receive — it would silently orphan every deployed tablet. Only bump
 // app.json when shipping a new binary through TestFlight / Play Store.
-export const UI_VERSION = "1.0.4";
+export const UI_VERSION = "1.0.5";
