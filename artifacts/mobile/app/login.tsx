@@ -59,11 +59,15 @@ export default function LoginScreen() {
       const rawRole = res.supervisor.role;
       const role: "admin" | "supervisor" | "super_admin" =
         rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
+      const rawSpecialty = res.supervisor.specialty;
+      const specialty: "equipment" | "technology" | "both" =
+        rawSpecialty === "equipment" || rawSpecialty === "technology" ? rawSpecialty : "both";
       await loginSupervisor(res.token, {
         id: res.supervisor.id,
         email: res.supervisor.email,
         name: res.supervisor.name,
         role,
+        specialty,
         organizationId: res.supervisor.organizationId,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

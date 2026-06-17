@@ -26,6 +26,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 import Colors from "@/constants/colors";
 import IssueCard from "@/components/IssueCard";
+import { useAuth } from "@/context/AuthContext";
 
 type StatusFilter = ListIssuesStatus | "all";
 type AreaFilter = "all" | "Front Counter" | "Grill" | "Back of House" | "Technology";
@@ -72,9 +73,18 @@ type ActiveDropdown = "area" | "category" | "priority" | "restaurant" | "aging" 
 
 export default function SupervisorIssuesScreen() {
   const insets = useSafeAreaInsets();
+  const { supervisor } = useAuth();
+  // Default the category filter to the supervisor's specialty so tech people
+  // land on Technology and equipment people land on Equipment. "both" (and
+  // admins) default to All. It's a soft default — they can change it or hit
+  // "Clear filters" to see everything.
+  const specialtyDefault: CategoryFilter =
+    supervisor?.role === "supervisor" && supervisor.specialty !== "both"
+      ? supervisor.specialty
+      : "all";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [areaFilter, setAreaFilter] = useState<AreaFilter>("all");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(specialtyDefault);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [restaurantFilter, setRestaurantFilter] = useState<number | null>(null);
   const [agingFilter, setAgingFilter] = useState<number | null>(null);

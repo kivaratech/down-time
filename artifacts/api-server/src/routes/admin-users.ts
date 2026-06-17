@@ -41,6 +41,7 @@ router.get("/admin/users", async (req, res) => {
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,
+      specialty: supervisorsTable.specialty,
       isActive: supervisorsTable.isActive,
       createdAt: supervisorsTable.createdAt,
     })
@@ -74,6 +75,7 @@ const CreateUserBody = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
   role: z.enum(["supervisor", "admin"]).default("supervisor"),
+  specialty: z.enum(["equipment", "technology", "both"]).default("both"),
 });
 
 // POST /api/admin/users — create a new supervisor account in the admin's org
@@ -87,7 +89,7 @@ router.post("/admin/users", async (req, res) => {
     return;
   }
 
-  const { password, name, role } = body.data;
+  const { password, name, role, specialty } = body.data;
   // Normalize email — login lowercases too, so signup must match.
   const email = body.data.email.trim().toLowerCase();
 
@@ -119,12 +121,16 @@ router.post("/admin/users", async (req, res) => {
       passwordHash,
       name,
       role,
+      // Admins always receive all notifications, so their specialty is
+      // irrelevant; pin it to "both" so it's never a confusing stored value.
+      specialty: role === "admin" ? "both" : specialty,
     })
     .returning({
       id: supervisorsTable.id,
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,
+      specialty: supervisorsTable.specialty,
       isActive: supervisorsTable.isActive,
       createdAt: supervisorsTable.createdAt,
     });
@@ -136,6 +142,7 @@ const UpdateUserBody = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().optional(),
   role: z.enum(["supervisor", "admin"]).optional(),
+  specialty: z.enum(["equipment", "technology", "both"]).optional(),
 });
 
 // PATCH /api/admin/users/:id — update name/email/role (same org only)
@@ -161,7 +168,7 @@ router.patch("/admin/users/:id", async (req, res) => {
     return;
   }
 
-  const { name, role } = body.data;
+  const { name, role, specialty } = body.data;
   const email = body.data.email ? body.data.email.trim().toLowerCase() : undefined;
 
   if (email !== undefined) {
@@ -186,6 +193,10 @@ router.patch("/admin/users/:id", async (req, res) => {
   if (name !== undefined) updates.name = name;
   if (email !== undefined) updates.email = email;
   if (role !== undefined) updates.role = role;
+  if (specialty !== undefined) updates.specialty = specialty;
+  // Switching a user to admin makes specialty moot (admins get everything) —
+  // normalize to "both" so the stored value can't be misleading.
+  if (role === "admin") updates.specialty = "both";
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No fields to update" });
@@ -201,6 +212,7 @@ router.patch("/admin/users/:id", async (req, res) => {
       name: supervisorsTable.name,
       email: supervisorsTable.email,
       role: supervisorsTable.role,
+      specialty: supervisorsTable.specialty,
       isActive: supervisorsTable.isActive,
       createdAt: supervisorsTable.createdAt,
     });

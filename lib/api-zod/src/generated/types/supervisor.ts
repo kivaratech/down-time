@@ -6,12 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SupervisorRole } from "./supervisorRole";
+import type { SupervisorSpecialty } from "./supervisorSpecialty";
 
 export interface Supervisor {
   id: number;
   email: string;
   name: string;
   role: SupervisorRole;
+  /** Issue category this user handles. Drives notification routing and the default category filter on their issue list. Admins always get all notifications regardless of this value. */
+  specialty: SupervisorSpecialty;
   /** Null only for super_admin accounts. */
   organizationId: number | null;
 }

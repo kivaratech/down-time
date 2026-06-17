@@ -26,6 +26,12 @@ export const supervisorsTable = pgTable(
     passwordHash: text("password_hash").notNull(),
     name: text("name").notNull(),
     role: text("role").notNull().default("supervisor"),
+    // Which issue category this person handles: "equipment", "technology",
+    // or "both". Default "both" preserves prior behavior (gets everything).
+    // Drives (a) who is pushed a notification on a new issue and (b) what
+    // category the supervisor's issue list defaults to. Admins ignore this —
+    // they always receive all notifications.
+    specialty: text("specialty").notNull().default("both"),
     isActive: boolean("is_active").notNull().default(true),
     // Legacy: single push-token column from before per-device tokens
     // (commit 526d2d7). Kept as vestigial — every code path reads from
@@ -42,6 +48,10 @@ export const supervisorsTable = pgTable(
     check(
       "supervisors_org_required",
       sql`${table.role} = 'super_admin' OR ${table.organizationId} IS NOT NULL`,
+    ),
+    check(
+      "supervisors_specialty_valid",
+      sql`${table.specialty} IN ('equipment', 'technology', 'both')`,
     ),
   ],
 );

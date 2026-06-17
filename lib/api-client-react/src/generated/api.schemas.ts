@@ -47,11 +47,25 @@ export const SupervisorRole = {
   super_admin: "super_admin",
 } as const;
 
+/**
+ * Issue category this user handles. Drives notification routing and the default category filter on their issue list. Admins always get all notifications regardless of this value.
+ */
+export type SupervisorSpecialty =
+  (typeof SupervisorSpecialty)[keyof typeof SupervisorSpecialty];
+
+export const SupervisorSpecialty = {
+  equipment: "equipment",
+  technology: "technology",
+  both: "both",
+} as const;
+
 export interface Supervisor {
   id: number;
   email: string;
   name: string;
   role: SupervisorRole;
+  /** Issue category this user handles. Drives notification routing and the default category filter on their issue list. Admins always get all notifications regardless of this value. */
+  specialty: SupervisorSpecialty;
   /** Null only for super_admin accounts. */
   organizationId: number | null;
 }

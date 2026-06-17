@@ -46,6 +46,11 @@ export const SupervisorLoginResponse = zod.object({
     email: zod.string().email(),
     name: zod.string(),
     role: zod.enum(["supervisor", "admin", "super_admin"]),
+    specialty: zod
+      .enum(["equipment", "technology", "both"])
+      .describe(
+        "Issue category this user handles. Drives notification routing and the default category filter on their issue list. Admins always get all notifications regardless of this value.",
+      ),
     organizationId: zod
       .number()
       .nullable()
@@ -79,6 +84,11 @@ export const GetMeResponse = zod.object({
       email: zod.string().email(),
       name: zod.string(),
       role: zod.enum(["supervisor", "admin", "super_admin"]),
+      specialty: zod
+        .enum(["equipment", "technology", "both"])
+        .describe(
+          "Issue category this user handles. Drives notification routing and the default category filter on their issue list. Admins always get all notifications regardless of this value.",
+        ),
       organizationId: zod
         .number()
         .nullable()

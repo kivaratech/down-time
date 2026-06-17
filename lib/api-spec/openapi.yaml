@@ -899,11 +899,18 @@ components:
         role:
           type: string
           enum: [supervisor, admin, super_admin]
+        specialty:
+          type: string
+          enum: [equipment, technology, both]
+          description: >-
+            Issue category this user handles. Drives notification routing and
+            the default category filter on their issue list. Admins always get
+            all notifications regardless of this value.
         organizationId:
           type: integer
           nullable: true
           description: Null only for super_admin accounts.
-      required: [id, email, name, role, organizationId]
+      required: [id, email, name, role, specialty, organizationId]
 
     MeResponse:
       type: object

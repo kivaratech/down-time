@@ -289,7 +289,16 @@ router.post("/issues", async (req, res) => {
         supervisorDevicesTable,
         eq(supervisorDevicesTable.supervisorId, supervisorsTable.id),
       )
-      .where(eq(supervisorsTable.isActive, true)),
+      // Only ping supervisors whose specialty covers this issue's category.
+      // "both" covers everything; otherwise it must match (equipment ↔
+      // equipment, technology ↔ technology). Admins (next query) are exempt —
+      // they always get everything.
+      .where(
+        and(
+          eq(supervisorsTable.isActive, true),
+          inArray(supervisorsTable.specialty, ["both", category]),
+        ),
+      ),
     db
       .select({
         supervisorId: supervisorsTable.id,

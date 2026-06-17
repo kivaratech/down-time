@@ -21,15 +21,24 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 
+type Specialty = "equipment" | "technology" | "both";
+
 type UserRow = {
   id: number;
   name: string;
   email: string;
   role: string;
+  specialty: Specialty;
   isActive: boolean;
   createdAt: string;
   restaurantIds: number[];
 };
+
+const SPECIALTY_OPTIONS: { key: Specialty; label: string; icon: React.ComponentProps<typeof Feather>["name"] }[] = [
+  { key: "equipment", label: "Equipment", icon: "tool" },
+  { key: "technology", label: "Technology", icon: "monitor" },
+  { key: "both", label: "Both", icon: "layers" },
+];
 
 type Restaurant = {
   id: number;
@@ -44,6 +53,7 @@ type FormState = {
   password: string;
   confirmPassword: string;
   role: "supervisor" | "admin";
+  specialty: Specialty;
 };
 
 const emptyForm = (): FormState => ({
@@ -53,6 +63,7 @@ const emptyForm = (): FormState => ({
   password: "",
   confirmPassword: "",
   role: "supervisor",
+  specialty: "both",
 });
 
 // Lightweight client-side email shape check. The server has the
@@ -137,6 +148,7 @@ export default function UsersScreen() {
       password: "",
       confirmPassword: "",
       role: user.role as "supervisor" | "admin",
+      specialty: user.specialty ?? "both",
     });
     setFormError("");
     setFormVisible(true);
@@ -216,6 +228,9 @@ export default function UsersScreen() {
         const body: Record<string, any> = {
           name: form.name.trim(),
           role: form.role,
+          // Specialty only matters for supervisors; the server pins admins to
+          // "both" anyway, so sending it is harmless.
+          specialty: form.role === "admin" ? "both" : form.specialty,
         };
         // Only send email if it actually changed — avoids triggering a
         // redundant MX check and uniqueness lookup server-side.
@@ -233,6 +248,7 @@ export default function UsersScreen() {
           email,
           password: form.password,
           role: form.role,
+          specialty: form.role === "admin" ? "both" : form.specialty,
         };
         await customFetch("/api/admin/users", {
           method: "POST",
@@ -476,6 +492,39 @@ export default function UsersScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Specialty — supervisors only. Admins always get everything, so
+                there's nothing to choose for them. */}
+            {form.role === "supervisor" && (
+              <>
+                <Text style={styles.fieldLabel}>Notifications For</Text>
+                <View style={styles.specialtyRow}>
+                  {SPECIALTY_OPTIONS.map((opt) => {
+                    const active = form.specialty === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.specialtyChip, active && styles.specialtyChipActive]}
+                        onPress={() => setForm((f) => ({ ...f, specialty: opt.key }))}
+                      >
+                        <Feather
+                          name={opt.icon}
+                          size={15}
+                          color={active ? "#FFFFFF" : Colors.textSecondary}
+                        />
+                        <Text style={[styles.specialtyChipText, active && styles.specialtyChipTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.specialtyHint}>
+                  Which issues this person is notified about. Their issue list
+                  also opens to this category (they can still view all).
+                </Text>
+              </>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
@@ -716,6 +765,16 @@ function UserCard({
                 {user.role}
               </Text>
             </View>
+            {/* Specialty badge — supervisors only (admins always get all). */}
+            {user.role === "supervisor" && (() => {
+              const spec = SPECIALTY_OPTIONS.find((s) => s.key === (user.specialty ?? "both")) ?? SPECIALTY_OPTIONS[2];
+              return (
+                <View style={styles.specialtyBadge}>
+                  <Feather name={spec.icon} size={11} color={Colors.primary} />
+                  <Text style={styles.specialtyBadgeText}>{spec.label}</Text>
+                </View>
+              );
+            })()}
             {!user.isActive && (
               <View style={styles.inactiveBadge}>
                 <Text style={styles.inactiveBadgeText}>Inactive</Text>
@@ -1059,6 +1118,58 @@ const styles = StyleSheet.create({
   roleChipTextActive: {
     color: Colors.surface,
     fontWeight: "600",
+  },
+  specialtyRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  specialtyChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  specialtyChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  specialtyChipText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+  },
+  specialtyChipTextActive: {
+    color: Colors.surface,
+    fontWeight: "600",
+  },
+  specialtyHint: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+    marginTop: 8,
+    lineHeight: 17,
+  },
+  specialtyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primary + "12",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  specialtyBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.primary,
+    fontFamily: "Inter_600SemiBold",
   },
   errorBanner: {
     backgroundColor: Colors.accent + "18",

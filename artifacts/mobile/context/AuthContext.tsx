@@ -35,6 +35,9 @@ export type Supervisor = {
   // UI currently lands super_admins on the same screens as supervisors until
   // Phase 3 ships the dedicated super-admin route group.
   role: "admin" | "supervisor" | "super_admin";
+  // Which issue category this user handles. Drives the default category on the
+  // issues list. Admins always see/get everything regardless.
+  specialty: "equipment" | "technology" | "both";
   // Null only for super_admin (cross-org). Every other role has a single org.
   organizationId: number | null;
 };
@@ -114,11 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const rawRole = meResponse.supervisor.role;
             const role: "admin" | "supervisor" | "super_admin" =
               rawRole === "admin" || rawRole === "super_admin" ? rawRole : "supervisor";
+            const rawSpecialty = meResponse.supervisor.specialty;
+            const specialty: Supervisor["specialty"] =
+              rawSpecialty === "equipment" || rawSpecialty === "technology"
+                ? rawSpecialty
+                : "both";
             const fresh: Supervisor = {
               id: meResponse.supervisor.id,
               email: meResponse.supervisor.email,
               name: meResponse.supervisor.name,
               role,
+              specialty,
               organizationId: meResponse.supervisor.organizationId,
             };
             await AsyncStorage.setItem(SUPERVISOR_KEY, JSON.stringify(fresh));

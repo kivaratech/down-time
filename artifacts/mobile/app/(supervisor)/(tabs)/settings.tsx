@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -185,10 +184,6 @@ export default function SettingsScreen() {
             <Text style={styles.infoValue}>{roleLabel}</Text>
           </View>
         </View>
-
-        <Text style={styles.versionText}>
-          Version {Constants.expoConfig?.version ?? "1.0.0"}
-        </Text>
       </ScrollView>
 
       {/* Change Password Modal */}
@@ -522,12 +517,5 @@ const styles = StyleSheet.create({
   infoDivider: {
     height: 1,
     backgroundColor: Colors.borderLight,
-  },
-  versionText: {
-    textAlign: "center",
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
-    marginTop: 12,
   },
 });

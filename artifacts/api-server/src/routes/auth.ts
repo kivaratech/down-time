@@ -100,6 +100,7 @@ router.post("/auth/supervisor/login", loginLimiter, async (req, res) => {
       email: supervisor.email,
       name: supervisor.name,
       role: supervisor.role,
+      specialty: supervisor.specialty,
       organizationId: supervisor.organizationId,
     },
   });
@@ -371,6 +372,7 @@ router.get("/auth/me", async (req, res) => {
         email: supervisor.email,
         name: supervisor.name,
         role: supervisor.role,
+        specialty: supervisor.specialty,
         organizationId: supervisor.organizationId,
       },
     });
