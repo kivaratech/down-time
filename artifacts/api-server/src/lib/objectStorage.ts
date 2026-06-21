@@ -36,9 +36,14 @@ export const objectStorageClient = createStorageClient();
 /**
  * Resolve the GCS bucket name from env vars.
  *
- * Primary:  GCS_BUCKET_NAME — just the bucket name, e.g. "downtime-77b0a.appspot.com"
- *           Firebase Storage buckets end in .appspot.com, NOT .firebasestorage.app
- * Fallback: PRIVATE_OBJECT_DIR — legacy path-style var, e.g. "/downtime-77b0a.appspot.com"
+ * Primary:  GCS_BUCKET_NAME — just the bucket name. For THIS project it is
+ *           "downtime-77b0a.firebasestorage.app". NOTE: there are two Firebase
+ *           bucket naming schemes — newer projects (this one) use
+ *           "<project>.firebasestorage.app"; older ones use "<project>.appspot.com".
+ *           Use whichever bucket actually EXISTS (check Firebase console →
+ *           Storage). Don't assume the suffix — a wrong one verifies as
+ *           "bucket not found".
+ * Fallback: PRIVATE_OBJECT_DIR — legacy path-style var, e.g. "/downtime-77b0a.firebasestorage.app"
  *           The first path segment is used as the bucket name.
  */
 function getGcsBucketName(): string {
@@ -54,9 +59,9 @@ function getGcsBucketName(): string {
 
   throw new Error(
     "[storage] GCS_BUCKET_NAME env var is not set. " +
-      "Set it to the GCS bucket name, e.g. GCS_BUCKET_NAME=downtime-77b0a.appspot.com\n" +
-      "  NOTE: Firebase Storage bucket names end in .appspot.com — NOT .firebasestorage.app\n" +
-      "  You can find the bucket name in the Firebase console under Storage."
+      "Set it to the GCS bucket name, e.g. GCS_BUCKET_NAME=downtime-77b0a.firebasestorage.app\n" +
+      "  Find the exact bucket name in the Firebase console under Storage — newer\n" +
+      "  projects use .firebasestorage.app, older ones .appspot.com."
   );
 }
 
@@ -82,7 +87,8 @@ export async function validateStorageConfig(): Promise<void> {
       if (!exists) {
         throw new Error(
           `[storage] GCS bucket not found: "${bucketName}"\n` +
-            "  Check GCS_BUCKET_NAME — Firebase Storage bucket names end in .appspot.com, not .firebasestorage.app\n" +
+            "  Check GCS_BUCKET_NAME against the exact bucket in Firebase console → Storage\n" +
+            "  (this project uses .firebasestorage.app; some older projects use .appspot.com).\n" +
             "  Also verify GCS_SERVICE_ACCOUNT_JSON has Storage access to this bucket."
         );
       }

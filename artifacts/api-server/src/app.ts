@@ -3,7 +3,6 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import legalRouter from "./routes/legal";
-import debugRouter from "./routes/debug";
 import { logger } from "./lib/logger";
 import { principalMiddleware } from "./middleware/principal";
 
@@ -60,9 +59,6 @@ app.use(principalMiddleware);
 // App Store and Play Store reviewers click these URLs from the store
 // listing and the cleaner path reads more professionally.
 app.use(legalRouter);
-
-// TEMP: network diagnostics for the GCS connectivity issue. Remove later.
-app.use("/api", debugRouter);
 
 app.use("/api", router);
 
