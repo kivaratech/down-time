@@ -70,9 +70,18 @@ router.get("/_debug/net", async (_req, res) => {
   // The real test: does the actual GCS storage client (the one that was
   // throwing "Premature close") now authenticate + reach the bucket?
   const bucketName = process.env.GCS_BUCKET_NAME?.trim() || "(unset)";
-  out.gcs_bucket_exists = await timed(async () => {
+  out.gcs_configured = await timed(async () => {
     const [exists] = await objectStorageClient.bucket(bucketName).exists();
     return { bucketName, exists };
+  });
+  // Test both candidate bucket names explicitly so we know which one is real.
+  out.gcs_appspot = await timed(async () => {
+    const [exists] = await objectStorageClient.bucket("downtime-77b0a.appspot.com").exists();
+    return { exists };
+  });
+  out.gcs_firebasestorage = await timed(async () => {
+    const [exists] = await objectStorageClient.bucket("downtime-77b0a.firebasestorage.app").exists();
+    return { exists };
   });
 
   res.json(out);
