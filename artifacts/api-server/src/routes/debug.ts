@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { promises as dns } from "node:dns";
+import { objectStorageClient } from "../lib/objectStorage";
 
 // ───────────────────────────────────────────────────────────────────────────
 // TEMPORARY diagnostic router. Added to pinpoint why the server can't reach
@@ -64,6 +65,14 @@ router.get("/_debug/net", async (_req, res) => {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: "grant_type=invalid_probe",
+  });
+
+  // The real test: does the actual GCS storage client (the one that was
+  // throwing "Premature close") now authenticate + reach the bucket?
+  const bucketName = process.env.GCS_BUCKET_NAME?.trim() || "(unset)";
+  out.gcs_bucket_exists = await timed(async () => {
+    const [exists] = await objectStorageClient.bucket(bucketName).exists();
+    return { bucketName, exists };
   });
 
   res.json(out);
