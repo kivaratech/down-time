@@ -42,6 +42,8 @@ function RestaurantStatCard({
   const openCount = issues.filter((i) => i.status === "open").length;
   const urgentCount = issues.filter((i) => i.priority === "urgent").length;
   const inProgressCount = issues.filter((i) => i.status === "in_progress").length;
+  // "Total" reflects outstanding work, so resolved issues don't count toward it.
+  const activeCount = issues.filter((i) => i.status !== "resolved").length;
   const quickIssues = issues
     .filter((i) => i.priority === "urgent" || i.status === "open")
     .slice(0, 2);
@@ -85,7 +87,7 @@ function RestaurantStatCard({
           onPress={() => onStatPress({ status: "all", priority: "all", restaurantId: restaurant.id })}
           activeOpacity={0.7}
         >
-          <Text style={[styles.statValue, { color: Colors.textSecondary }]}>{issues.length}</Text>
+          <Text style={[styles.statValue, { color: Colors.textSecondary }]}>{activeCount}</Text>
           <Text style={styles.statLabel}>Total</Text>
         </TouchableOpacity>
       </View>
