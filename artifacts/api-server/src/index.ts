@@ -1,7 +1,15 @@
+import dns from "node:dns";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabaseIfEmpty } from "./lib/seed";
 import { validateStorageConfig } from "./lib/objectStorage";
+
+// Prefer IPv4 when resolving hostnames. The container's IPv6 egress to
+// Google's API endpoints was dropping connections mid-response ("Premature
+// close" when fetching googleapis.com/oauth2/v4/token), which broke GCS photo
+// storage. Forcing IPv4-first makes Node take the working path. Set before any
+// network call happens (the storage client doesn't resolve DNS until used).
+dns.setDefaultResultOrder("ipv4first");
 
 const rawPort = process.env["PORT"];
 
