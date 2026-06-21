@@ -1,4 +1,8 @@
-FROM node:24-alpine
+# Node 22 LTS — the active long-term-support line. Pinned off Node 24
+# ("Current") after a newer 24.x pulled by the moving tag introduced an
+# undici/fetch "Premature close" regression that broke the server's HTTPS
+# call to Google's OAuth token endpoint (knocking out photo storage).
+FROM node:22-alpine
 WORKDIR /app
 
 # Native build tools required by some npm packages

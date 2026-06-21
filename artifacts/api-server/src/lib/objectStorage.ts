@@ -63,31 +63,53 @@ function getGcsBucketName(): string {
 /**
  * Validate that the configured GCS bucket exists and is accessible.
  * Call this at server startup so misconfigurations fail fast with a clear message.
+ *
+ * Retries transient failures (network blips, "Premature close" on the Google
+ * OAuth token fetch) with a short backoff before giving up — a flaky moment
+ * reaching Google shouldn't leave photo storage broken until the next deploy.
+ * A genuine "bucket not found" is a real config error and is NOT retried.
  */
 export async function validateStorageConfig(): Promise<void> {
   const bucketName = getGcsBucketName();
   logger.info({ bucketName }, "[storage] Configured GCS bucket");
 
-  try {
-    const [exists] = await objectStorageClient.bucket(bucketName).exists();
-    if (!exists) {
-      throw new Error(
-        `[storage] GCS bucket not found: "${bucketName}"\n` +
-          "  Check GCS_BUCKET_NAME — Firebase Storage bucket names end in .appspot.com, not .firebasestorage.app\n" +
-          "  Also verify GCS_SERVICE_ACCOUNT_JSON has Storage access to this bucket."
-      );
+  const maxAttempts = 3;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const [exists] = await objectStorageClient.bucket(bucketName).exists();
+      if (!exists) {
+        throw new Error(
+          `[storage] GCS bucket not found: "${bucketName}"\n` +
+            "  Check GCS_BUCKET_NAME — Firebase Storage bucket names end in .appspot.com, not .firebasestorage.app\n" +
+            "  Also verify GCS_SERVICE_ACCOUNT_JSON has Storage access to this bucket."
+        );
+      }
+      logger.info({ bucketName }, "[storage] GCS bucket verified OK");
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // A real "bucket not found" is a config error — fail immediately, no retry.
+      if (msg.startsWith("[storage] GCS bucket not found")) throw err;
+
+      lastErr = err;
+      if (attempt < maxAttempts) {
+        const delayMs = attempt * 1500; // 1.5s, 3s
+        logger.warn(
+          { bucketName, attempt, maxAttempts, err: msg },
+          `[storage] verification attempt ${attempt} failed — retrying in ${delayMs}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // Rethrow bucket-not-found errors verbatim; wrap permission/network errors
-    if (msg.startsWith("[storage] GCS bucket not found")) throw err;
-    throw new Error(
-      `[storage] Failed to verify GCS bucket "${bucketName}": ${msg}\n` +
-        "  Check GCS_SERVICE_ACCOUNT_JSON has the Storage Object Admin role on this bucket."
-    );
   }
 
-  logger.info({ bucketName }, "[storage] GCS bucket verified OK");
+  const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new Error(
+    `[storage] Failed to verify GCS bucket "${bucketName}" after ${maxAttempts} attempts: ${msg}\n` +
+      "  Check GCS_SERVICE_ACCOUNT_JSON has the Storage Object Admin role on this bucket."
+  );
 }
 
 export class ObjectNotFoundError extends Error {
