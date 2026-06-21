@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { objectStorageClient } from "../lib/objectStorage";
+import { ObjectStorageService, objectStorageClient } from "../lib/objectStorage";
 
-// TEMPORARY diagnostic — verifying GCS WRITE (upload) works. Remove after.
+// TEMPORARY diagnostic — verifying GCS upload via the real code path. Remove after.
 const router: IRouter = Router();
+const svc = new ObjectStorageService();
 
 async function timed<T>(
   fn: () => Promise<T>,
@@ -23,30 +24,26 @@ async function timed<T>(
 
 router.get("/_debug/upload", async (_req, res) => {
   const out: Record<string, unknown> = {};
-  const bucketName = process.env.GCS_BUCKET_NAME?.trim() || "(unset)";
-  out.bucketName = bucketName;
-  const testName = `_debug/test-${Date.now()}.txt`;
+  let uploadedPath: string | null = null;
 
-  out.write = await timed(async () => {
-    const file = objectStorageClient.bucket(bucketName).file(testName);
-    await file.save(Buffer.from("debug write test"), {
-      metadata: { contentType: "text/plain" },
+  // Exercise the REAL uploadPhotoBuffer (signed PUT + native fetch).
+  out.upload = await timed(async () => {
+    uploadedPath = await svc.uploadPhotoBuffer(Buffer.from("debug upload test"), 999999);
+    return { path: uploadedPath };
+  });
+
+  // Confirm it landed, then clean it up.
+  if (uploadedPath) {
+    const bucketName = process.env.GCS_BUCKET_NAME?.trim() || "";
+    out.readback = await timed(async () => {
+      const [exists] = await objectStorageClient.bucket(bucketName).file(uploadedPath!).exists();
+      return { exists };
     });
-    return { wrote: testName };
-  });
-
-  out.readback = await timed(async () => {
-    const [exists] = await objectStorageClient.bucket(bucketName).file(testName).exists();
-    return { exists };
-  });
-
-  out.cleanup = await timed(async () => {
-    await objectStorageClient
-      .bucket(bucketName)
-      .file(testName)
-      .delete({ ignoreNotFound: true });
-    return { deleted: true };
-  });
+    out.cleanup = await timed(async () => {
+      await objectStorageClient.bucket(bucketName).file(uploadedPath!).delete({ ignoreNotFound: true });
+      return { deleted: true };
+    });
+  }
 
   res.json(out);
 });

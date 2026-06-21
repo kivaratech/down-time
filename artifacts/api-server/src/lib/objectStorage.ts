@@ -242,8 +242,31 @@ export class ObjectStorageService {
     const fullPath = `${privateObjectDir}/${objectName}`;
     const { bucketName } = parseObjectPath(fullPath);
     const file = objectStorageClient.bucket(bucketName).file(objectName);
-    await file.save(buffer, { metadata: { contentType: "image/jpeg" } });
-    logger.info({ objectName, bucketName, bytes: buffer.length }, "[storage] photo uploaded");
+    // Upload via a v4 signed PUT URL + native fetch instead of file.save().
+    // file.save() goes through @google-cloud/storage's gaxios transport, and
+    // the gaxios@7 override (required to fix the auth "Premature close" — see
+    // the gcs-photo-outage notes) breaks storage's upload path with
+    // "URL is required". The signed URL is generated locally from the
+    // service-account key (no gaxios), and native fetch — which we proved
+    // works fine to Google — performs the actual PUT.
+    const [signedUrl] = await file.getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + 5 * 60 * 1000,
+      contentType: "image/jpeg",
+    });
+    const putResp = await fetch(signedUrl, {
+      method: "PUT",
+      headers: { "content-type": "image/jpeg" },
+      body: buffer,
+    });
+    if (!putResp.ok) {
+      const text = await putResp.text().catch(() => "");
+      throw new Error(
+        `GCS signed PUT failed: ${putResp.status} ${putResp.statusText} ${text.slice(0, 200)}`,
+      );
+    }
+    logger.info({ objectName, bucketName, bytes: buffer.length }, "[storage] photo uploaded (signed PUT)");
     return objectName;
   }
 
