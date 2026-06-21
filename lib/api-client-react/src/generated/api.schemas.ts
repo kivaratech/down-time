@@ -120,8 +120,8 @@ export type IssuePriority =
 
 export const IssuePriority = {
   urgent: "urgent",
-  high: "high",
   normal: "normal",
+  low: "low",
 } as const;
 
 export interface Issue {
@@ -193,8 +193,8 @@ export type UpdateIssueRequestPriority =
 
 export const UpdateIssueRequestPriority = {
   urgent: "urgent",
-  high: "high",
   normal: "normal",
+  low: "low",
 } as const;
 
 export interface UpdateIssueRequest {
@@ -427,8 +427,8 @@ export type ListIssuesPriority =
 
 export const ListIssuesPriority = {
   urgent: "urgent",
-  high: "high",
   normal: "normal",
+  low: "low",
 } as const;
 
 export type DeleteIssue200 = {

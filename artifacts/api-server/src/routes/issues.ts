@@ -48,7 +48,7 @@ async function signIssueImageUrls<T extends { imageUrl: string | null }>(issues:
   );
 }
 
-const PRIORITY_ORDER = sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'high' THEN 1 WHEN ${issuesTable.priority} = 'normal' THEN 2 ELSE 3 END`;
+const PRIORITY_ORDER = sql`CASE WHEN ${issuesTable.priority} = 'urgent' THEN 0 WHEN ${issuesTable.priority} = 'normal' THEN 1 WHEN ${issuesTable.priority} = 'low' THEN 2 ELSE 3 END`;
 
 function buildIssueQuery() {
   return db

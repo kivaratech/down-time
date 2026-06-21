@@ -43,10 +43,10 @@ function getPriorityStyle(priority: string | null | undefined) {
   switch (priority) {
     case "urgent":
       return { bg: Colors.urgentBg, text: Colors.urgent, label: "Urgent" };
-    case "high":
-      return { bg: Colors.highBg, text: Colors.high, label: "High" };
     case "normal":
       return { bg: Colors.normalBg, text: Colors.normal, label: "Normal" };
+    case "low":
+      return { bg: Colors.lowBg, text: Colors.low, label: "Low" };
     default:
       return null;
   }

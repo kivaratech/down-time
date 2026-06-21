@@ -147,7 +147,7 @@ export const ListRestaurantIssuesResponseItem = zod.object({
   description: zod.string(),
   status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
-  priority: zod.enum(["urgent", "high", "normal"]).nullish(),
+  priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
   resolvedAt: zod.date().nullish(),
@@ -167,7 +167,7 @@ export const ListIssuesQueryParams = zod.object({
     .enum(["open", "in_progress", "waiting", "resolved", "all"])
     .optional(),
   category: zod.enum(["equipment", "technology"]).optional(),
-  priority: zod.enum(["urgent", "high", "normal"]).optional(),
+  priority: zod.enum(["urgent", "normal", "low"]).optional(),
   assignedTo: zod.coerce.string().optional(),
   agingDays: zod.coerce.number().optional(),
 });
@@ -184,7 +184,7 @@ export const ListIssuesResponseItem = zod.object({
   description: zod.string(),
   status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
-  priority: zod.enum(["urgent", "high", "normal"]).nullish(),
+  priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
   resolvedAt: zod.date().nullish(),
@@ -227,7 +227,7 @@ export const GetIssueResponse = zod
     description: zod.string(),
     status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
     assignedTo: zod.string().nullish(),
-    priority: zod.enum(["urgent", "high", "normal"]).nullish(),
+    priority: zod.enum(["urgent", "normal", "low"]).nullish(),
     createdAt: zod.date(),
     updatedAt: zod.date(),
     resolvedAt: zod.date().nullish(),
@@ -258,7 +258,7 @@ export const UpdateIssueParams = zod.object({
 export const UpdateIssueBody = zod.object({
   status: zod.enum(["open", "in_progress", "waiting", "resolved"]).optional(),
   assignedTo: zod.string().nullish(),
-  priority: zod.enum(["urgent", "high", "normal"]).nullish(),
+  priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   description: zod.string().optional(),
 });
 
@@ -274,7 +274,7 @@ export const UpdateIssueResponse = zod.object({
   description: zod.string(),
   status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
-  priority: zod.enum(["urgent", "high", "normal"]).nullish(),
+  priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
   resolvedAt: zod.date().nullish(),

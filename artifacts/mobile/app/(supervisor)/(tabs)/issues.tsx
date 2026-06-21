@@ -58,8 +58,8 @@ const CATEGORY_OPTIONS: { key: CategoryFilter; label: string }[] = [
 const PRIORITY_OPTIONS: { key: PriorityFilter; label: string; color: string }[] = [
   { key: "all", label: "Any Priority", color: Colors.textSecondary },
   { key: "urgent", label: "Urgent", color: Colors.urgent },
-  { key: "high", label: "High", color: Colors.high },
   { key: "normal", label: "Normal", color: Colors.normal },
+  { key: "low", label: "Low", color: Colors.low },
 ];
 
 const AGING_OPTIONS: { key: number | null; label: string }[] = [

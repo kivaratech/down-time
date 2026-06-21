@@ -50,8 +50,8 @@ const STATUS_OPTIONS: { value: IssueStatus; label: string; color: string; bg: st
 
 const PRIORITY_OPTIONS: { value: IssuePriority; label: string; color: string; bg: string }[] = [
   { value: "urgent", label: "Urgent", color: Colors.urgent, bg: Colors.urgentBg },
-  { value: "high", label: "High", color: Colors.high, bg: Colors.highBg },
   { value: "normal", label: "Normal", color: Colors.normal, bg: Colors.normalBg },
+  { value: "low", label: "Low", color: Colors.low, bg: Colors.lowBg },
   { value: null, label: "None", color: Colors.textSecondary, bg: Colors.borderLight },
 ];
 

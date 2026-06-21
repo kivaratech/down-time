@@ -221,7 +221,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [urgent, high, normal]
+            enum: [urgent, normal, low]
         - name: assignedTo
           in: query
           schema:
@@ -971,7 +971,7 @@ components:
           nullable: true
         priority:
           type: string
-          enum: [urgent, high, normal]
+          enum: [urgent, normal, low]
           nullable: true
         createdAt:
           type: string
@@ -1067,7 +1067,7 @@ components:
           nullable: true
         priority:
           type: string
-          enum: [urgent, high, normal]
+          enum: [urgent, normal, low]
           nullable: true
         description:
           type: string

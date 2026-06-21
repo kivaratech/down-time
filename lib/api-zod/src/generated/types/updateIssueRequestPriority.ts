@@ -12,6 +12,6 @@ export type UpdateIssueRequestPriority =
 
 export const UpdateIssueRequestPriority = {
   urgent: "urgent",
-  high: "high",
   normal: "normal",
+  low: "low",
 } as const;

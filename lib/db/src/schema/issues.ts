@@ -28,7 +28,10 @@ export const statusEnum = pgEnum("status", [
   "resolved",
 ]);
 
-export const priorityEnum = pgEnum("priority", ["urgent", "high", "normal"]);
+// Priority levels, most-severe first. "high" was removed (it was redundant
+// with "urgent"); existing high rows are remapped to urgent by the
+// migrate-priority-levels script. A null value = "None" (the unset default).
+export const priorityEnum = pgEnum("priority", ["urgent", "normal", "low"]);
 
 export const issuesTable = pgTable(
   "issues",
