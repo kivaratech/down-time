@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { useNotificationDeepLink } from "@/hooks/usePushNotifications";
 import Colors from "@/constants/colors";
 import { queryClient } from "@/lib/queryClient";
 
@@ -25,7 +26,12 @@ setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { isLoading, authType } = useAuth();
+  const { isLoading } = useAuth();
+
+  // Route a tapped push notification to its issue. Gated on !isLoading so a
+  // cold-start tap waits until the navigation tree (and the issue route) is
+  // mounted before navigating.
+  useNotificationDeepLink(!isLoading);
 
   if (isLoading) {
     return (

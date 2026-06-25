@@ -1,7 +1,9 @@
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
-import { Platform } from "react-native";
+import { router } from "expo-router";
+import { useEffect, useRef } from "react";
+import { InteractionManager, Platform } from "react-native";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -84,6 +86,100 @@ export async function registerSupervisorPushToken(authToken: string): Promise<vo
   } catch (err) {
     console.warn("[notifications] Failed to get Expo push token:", err);
   }
+}
+
+// Pulls the issue id out of a tapped notification's data payload. The server
+// sends `data: { type: "new_issue", issueId }` (see api-server
+// lib/notifications.ts). Returns the id as a string ready for the route, or
+// null if this notification isn't an issue notification.
+function getIssueIdFromResponse(
+  response: Notifications.NotificationResponse | null,
+): string | null {
+  const data = response?.notification.request.content.data as
+    | { issueId?: number | string }
+    | undefined;
+  const id = data?.issueId;
+  return id != null && id !== "" ? String(id) : null;
+}
+
+/**
+ * Deep-links a tapped push notification straight to its issue detail screen.
+ *
+ * Handles both delivery cases:
+ *  - Warm tap (app running / backgrounded): addNotificationResponseReceivedListener
+ *  - Cold start (app launched by the tap): getLastNotificationResponseAsync
+ *
+ * `ready` should be false while auth is still loading. On a cold start the
+ * navigation tree (and the issue route) isn't mounted yet, so we stash the id
+ * and flush it the moment `ready` flips to true. Push notifications only go to
+ * signed-in supervisors, so by the time they tap, they have access to the issue.
+ */
+export function useNotificationDeepLink(ready: boolean): void {
+  // Holds an issue id captured before navigation was ready (cold start).
+  const pendingRef = useRef<string | null>(null);
+  // Mirror `ready` into a ref so the once-registered listener reads the live
+  // value instead of the value captured when the effect first ran.
+  const readyRef = useRef(ready);
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+
+  // Push to the issue screen, but defer past the current frame. On a cold
+  // start, app/index.tsx fires a one-time `router.replace` to the dashboard;
+  // if our push lands first, that replace clobbers the issue screen and dumps
+  // the user on the dashboard instead. runAfterInteractions waits for the
+  // navigator's initial transition to settle, reliably ordering us AFTER the
+  // redirect (stack becomes [dashboard, issue], so Back returns to dashboard).
+  // For warm taps the app is already idle, so this is a harmless extra tick.
+  const navigateToIssue = (id: string) =>
+    InteractionManager.runAfterInteractions(() => {
+      router.push(`/issue/${id}`);
+    });
+
+  const go = (id: string) => {
+    if (readyRef.current) {
+      navigateToIssue(id);
+    } else {
+      pendingRef.current = id;
+    }
+  };
+
+  // Flush a deep-link that arrived before the app was ready to navigate
+  // (cold start). Cancel on unmount so a deferred push can't fire into a
+  // torn-down tree.
+  useEffect(() => {
+    if (!ready || !pendingRef.current) return;
+    const id = pendingRef.current;
+    pendingRef.current = null;
+    const handle = navigateToIssue(id);
+    return () => handle.cancel();
+  }, [ready]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    let mounted = true;
+
+    // Cold start: was the app opened by tapping a notification?
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!mounted) return;
+        const id = getIssueIdFromResponse(response);
+        if (id) go(id);
+      })
+      .catch(() => {});
+
+    // Warm: notification tapped while the app is running or backgrounded.
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const id = getIssueIdFromResponse(response);
+      if (id) go(id);
+    });
+
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }
 
 export function configurePushNotifications(): void {

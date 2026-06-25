@@ -441,14 +441,18 @@ router.put("/admin/users/:id/restaurants", async (req, res) => {
     }
   }
 
-  // Replace all assignments atomically (delete + insert).
-  await db.delete(supervisorRestaurantsTable).where(eq(supervisorRestaurantsTable.supervisorId, id));
+  // Replace all assignments atomically (delete + insert) in a single
+  // transaction so a failure mid-replace can't leave the user with no
+  // assignments (the delete committing without the insert).
+  await db.transaction(async (tx) => {
+    await tx.delete(supervisorRestaurantsTable).where(eq(supervisorRestaurantsTable.supervisorId, id));
 
-  if (restaurantIds.length > 0) {
-    await db.insert(supervisorRestaurantsTable).values(
-      restaurantIds.map((restaurantId) => ({ supervisorId: id, restaurantId }))
-    );
-  }
+    if (restaurantIds.length > 0) {
+      await tx.insert(supervisorRestaurantsTable).values(
+        restaurantIds.map((restaurantId) => ({ supervisorId: id, restaurantId }))
+      );
+    }
+  });
 
   res.json({ restaurantIds });
 });

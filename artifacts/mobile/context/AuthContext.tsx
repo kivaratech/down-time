@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter, supervisorLogout, getMe } from "@workspace/api-client-react";
+import { setAuthTokenGetter, supervisorLogout, getMe, ApiError } from "@workspace/api-client-react";
 import { queryClient } from "@/lib/queryClient";
 import React, {
   createContext,
@@ -94,9 +94,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let meResponse: Awaited<ReturnType<typeof getMe>>;
         try {
           meResponse = await getMe();
-        } catch {
-          await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_TYPE_KEY, RESTAURANT_KEY, SUPERVISOR_KEY]);
-          setToken(null);
+        } catch (err) {
+          // ONLY a definitive 401/403 means the token is actually invalid
+          // (revoked, deleted) — that's the one case where we clear the
+          // stored session. Any other failure — a network error, a 5xx, a
+          // timeout, a parse error — is transient and MUST keep credentials.
+          //
+          // This is what was "unpairing" restaurant tablets after an OTA
+          // update: publishing an `eas update` forces every tablet to
+          // relaunch to apply the new bundle, which re-runs loadSession ->
+          // getMe() during a cold start when the network stack may not be
+          // ready yet (and while Railway may be cold-booting). The old
+          // catch-all wiped the token on that transient blip, sending the
+          // tablet back to the pairing screen even though its session was
+          // still perfectly valid server-side.
+          const status = err instanceof ApiError ? err.status : undefined;
+          if (status === 401 || status === 403) {
+            await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_TYPE_KEY, RESTAURANT_KEY, SUPERVISOR_KEY]);
+            setToken(null);
+            return;
+          }
+          // Transient failure: keep the (already-set) token and fall back to
+          // the cached user data so the app stays signed in and usable. The
+          // next launch / foreground will re-fetch the fresh shape.
+          console.warn("[auth] /auth/me failed transiently; keeping cached session:", err);
+          setAuthType(savedType as AuthType);
+          if (savedType === "restaurant" && savedRestaurant) {
+            setRestaurant(JSON.parse(savedRestaurant));
+          } else if (savedType === "supervisor" && savedSupervisor) {
+            setSupervisor(JSON.parse(savedSupervisor) as Supervisor);
+            registerSupervisorPushToken(savedToken).catch(() => {});
+          }
           return;
         }
         setAuthType(savedType as AuthType);
