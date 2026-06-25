@@ -2,8 +2,10 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { router } from "expo-router";
+import { getIssue, getGetIssueQueryKey } from "@workspace/api-client-react";
 import { useEffect, useRef } from "react";
 import { InteractionManager, Platform } from "react-native";
+import { queryClient } from "@/lib/queryClient";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -124,17 +126,37 @@ export function useNotificationDeepLink(ready: boolean): void {
     readyRef.current = ready;
   }, [ready]);
 
-  // Push to the issue screen, but defer past the current frame. On a cold
-  // start, app/index.tsx fires a one-time `router.replace` to the dashboard;
-  // if our push lands first, that replace clobbers the issue screen and dumps
-  // the user on the dashboard instead. runAfterInteractions waits for the
-  // navigator's initial transition to settle, reliably ordering us AFTER the
-  // redirect (stack becomes [dashboard, issue], so Back returns to dashboard).
-  // For warm taps the app is already idle, so this is a harmless extra tick.
-  const navigateToIssue = (id: string) =>
-    InteractionManager.runAfterInteractions(() => {
+  const navigateToIssue = (id: string) => {
+    // Start the issue fetch NOW, before the (deferred) navigation below. On a
+    // cold start the fetch would otherwise not begin until the issue screen
+    // mounts — i.e. after auth resolves, the dashboard renders, AND the
+    // deferral completes — so every round-trip ran in series and the user
+    // watched a spinner. Prefetching overlaps the network with all of that;
+    // React Query dedupes by key, so the screen's useGetIssue reads the cached
+    // (or still-in-flight) result and usually renders with no spinner. By the
+    // time we're called, auth is ready (ready/readyRef gate it), so the bearer
+    // token is set for the request.
+    const numericId = Number(id);
+    if (Number.isFinite(numericId)) {
+      queryClient
+        .prefetchQuery({
+          queryKey: getGetIssueQueryKey(numericId),
+          queryFn: () => getIssue(numericId),
+        })
+        .catch(() => {});
+    }
+
+    // Defer the actual navigation past the current frame. On a cold start,
+    // app/index.tsx fires a one-time `router.replace` to the dashboard; if our
+    // push lands first, that replace clobbers the issue screen and dumps the
+    // user on the dashboard instead. runAfterInteractions waits for the
+    // navigator's initial transition to settle, reliably ordering us AFTER the
+    // redirect (stack becomes [dashboard, issue], so Back returns to dashboard).
+    // For warm taps the app is already idle, so this is a harmless extra tick.
+    return InteractionManager.runAfterInteractions(() => {
       router.push(`/issue/${id}`);
     });
+  };
 
   const go = (id: string) => {
     if (readyRef.current) {

@@ -38,7 +38,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "in_progress", label: "In Progress" },
   { key: "waiting", label: "Waiting" },
   { key: "resolved", label: "Resolved" },
-  { key: "all", label: "All" },
+  // "Active" (key "all") = all outstanding work (open + in_progress + waiting).
+  // Resolved issues are deliberately excluded here and only appear under the
+  // "Resolved" filter — see the filteredIssues note below.
+  { key: "all", label: "Active" },
 ];
 
 const AREA_OPTIONS: { key: AreaFilter; label: string }[] = [
@@ -124,6 +127,16 @@ export default function SupervisorIssuesScreen() {
   let filteredIssues = areaFilter === "all"
     ? (issues ?? [])
     : (issues ?? []).filter((i) => i.area === areaFilter);
+
+  // The "Active" filter (key "all") shows outstanding work only — open,
+  // in_progress, waiting — and deliberately excludes resolved issues. Resolved
+  // only appears under the dedicated "Resolved" filter. The server returns
+  // resolved rows for status=all, so we drop them client-side here. This also
+  // makes the list match the dashboard "Total" stat, which navigates here with
+  // status=all and counts non-resolved issues only.
+  if (statusFilter === "all") {
+    filteredIssues = filteredIssues.filter((i) => i.status !== "resolved");
+  }
 
   // Sort resolved issues by age (oldest last)
   if (statusFilter === "resolved") {
