@@ -8,7 +8,7 @@ import {
   supervisorDevicesTable,
   supervisorRestaurantsTable,
 } from "@workspace/db";
-import { eq, and, asc, lte, gte, isNotNull, inArray, SQL } from "drizzle-orm";
+import { eq, and, asc, desc, lte, gte, isNotNull, inArray, SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   requireAuth,
@@ -184,10 +184,13 @@ router.get("/issues", async (req, res) => {
     conditions.push(lte(issuesTable.createdAt, cutoff));
   }
 
+  // Sort by priority band first (urgent → normal → low → none), then NEWEST
+  // first within each band so the most recently reported issue surfaces at the
+  // top of its priority group.
   const baseQuery = buildIssueQuery();
   const issues = conditions.length > 0
-    ? await baseQuery.where(and(...conditions)).orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt))
-    : await baseQuery.orderBy(PRIORITY_ORDER, asc(issuesTable.createdAt));
+    ? await baseQuery.where(and(...conditions)).orderBy(PRIORITY_ORDER, desc(issuesTable.createdAt))
+    : await baseQuery.orderBy(PRIORITY_ORDER, desc(issuesTable.createdAt));
 
   res.json(await signIssueImageUrls(issues));
 });
