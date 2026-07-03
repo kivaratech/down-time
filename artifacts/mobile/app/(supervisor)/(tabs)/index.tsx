@@ -39,12 +39,15 @@ function RestaurantStatCard({
   issues: Issue[];
   onStatPress: (filters: IssueNavFilters) => void;
 }) {
-  const openCount = issues.filter((i) => i.status === "open").length;
-  const urgentCount = issues.filter((i) => i.priority === "urgent").length;
-  const inProgressCount = issues.filter((i) => i.status === "in_progress").length;
-  // "Total" reflects outstanding work, so resolved issues don't count toward it.
-  const activeCount = issues.filter((i) => i.status !== "resolved").length;
-  const quickIssues = issues
+  // Every stat on this card reflects outstanding work only — once an issue
+  // is resolved it drops out of the urgent badge, Total, and quick rows
+  // regardless of its priority.
+  const activeIssues = issues.filter((i) => i.status !== "resolved");
+  const openCount = activeIssues.filter((i) => i.status === "open").length;
+  const urgentCount = activeIssues.filter((i) => i.priority === "urgent").length;
+  const inProgressCount = activeIssues.filter((i) => i.status === "in_progress").length;
+  const activeCount = activeIssues.length;
+  const quickIssues = activeIssues
     .filter((i) => i.priority === "urgent" || i.status === "open")
     .slice(0, 2);
 
@@ -187,9 +190,12 @@ export default function SupervisorDashboardScreen() {
 
   const isLoading = restaurantsLoading || issuesLoading;
 
-  const totalOpen = allIssues?.filter((i) => i.status === "open").length ?? 0;
-  const totalUrgent = allIssues?.filter((i) => i.priority === "urgent").length ?? 0;
-  const totalInProgress = allIssues?.filter((i) => i.status === "in_progress").length ?? 0;
+  // Summary tiles count outstanding work only — a resolved urgent issue no
+  // longer counts as urgent.
+  const activeIssues = allIssues?.filter((i) => i.status !== "resolved") ?? [];
+  const totalOpen = activeIssues.filter((i) => i.status === "open").length;
+  const totalUrgent = activeIssues.filter((i) => i.priority === "urgent").length;
+  const totalInProgress = activeIssues.filter((i) => i.status === "in_progress").length;
   const restaurantCount = restaurants?.length ?? 0;
 
   return (
