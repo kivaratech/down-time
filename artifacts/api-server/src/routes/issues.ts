@@ -18,7 +18,7 @@ import {
   principalCanAccessIssue,
 } from "../lib/auth";
 import { getCategoryForArea } from "../lib/equipment";
-import { notifySupervisorsOfNewIssue } from "../lib/notifications";
+import { notifySupervisorsOfNewIssue, notifyOfNewComment } from "../lib/notifications";
 import { ObjectStorageService, deleteObjectByKey } from "../lib/objectStorage";
 import {
   ListRestaurantIssuesParams,
@@ -547,6 +547,90 @@ router.post("/issues/:id/comments", async (req, res) => {
     .returning();
 
   res.status(201).json(comment);
+
+  // Notify everyone watching this issue that a new comment landed — non-blocking.
+  // Recipients mirror the new-issue rules: specialty-matched assigned supervisors
+  // + all same-org admins, fanned out to each of their devices. Two differences:
+  //  - We exclude whoever just wrote the comment (by authenticated supervisor id,
+  //    so it holds regardless of the free-text authorName). Device/tablet authors
+  //    have no supervisor id and aren't in the supervisor recipient set anyway.
+  //  - The issue already exists, so its category comes straight off the row
+  //    (issue.category) instead of being derived from the area.
+  const authorSupervisorId = principal.kind === "supervisor" ? principal.supervisorId : null;
+  const log = req.log;
+  Promise.all([
+    db
+      .select({
+        supervisorId: supervisorsTable.id,
+        pushToken: supervisorDevicesTable.expoPushToken,
+      })
+      .from(supervisorsTable)
+      .innerJoin(
+        supervisorRestaurantsTable,
+        and(
+          eq(supervisorRestaurantsTable.supervisorId, supervisorsTable.id),
+          eq(supervisorRestaurantsTable.restaurantId, issue.restaurantId),
+        ),
+      )
+      .innerJoin(
+        supervisorDevicesTable,
+        eq(supervisorDevicesTable.supervisorId, supervisorsTable.id),
+      )
+      .where(
+        and(
+          eq(supervisorsTable.isActive, true),
+          inArray(supervisorsTable.specialty, ["both", issue.category]),
+        ),
+      ),
+    db
+      .select({
+        supervisorId: supervisorsTable.id,
+        pushToken: supervisorDevicesTable.expoPushToken,
+      })
+      .from(supervisorsTable)
+      .innerJoin(
+        supervisorDevicesTable,
+        eq(supervisorDevicesTable.supervisorId, supervisorsTable.id),
+      )
+      .where(
+        and(
+          eq(supervisorsTable.role, "admin"),
+          eq(supervisorsTable.isActive, true),
+          issue.organizationId != null
+            ? eq(supervisorsTable.organizationId, issue.organizationId)
+            : isNotNull(supervisorsTable.organizationId),
+        ),
+      ),
+    db
+      .select({ name: restaurantsTable.name })
+      .from(restaurantsTable)
+      .where(eq(restaurantsTable.id, issue.restaurantId))
+      .limit(1),
+  ])
+    .then(([assigned, admins, [restaurant]]) => {
+      const seen = new Set<string>();
+      const recipients: { supervisorId: number; token: string }[] = [];
+      for (const r of [...assigned, ...admins]) {
+        if (r.supervisorId === authorSupervisorId) continue;
+        const key = `${r.supervisorId}|${r.pushToken}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        recipients.push({ supervisorId: r.supervisorId, token: r.pushToken });
+      }
+      if (recipients.length === 0) return;
+      return notifyOfNewComment({
+        issueId,
+        restaurantName: restaurant?.name ?? "Restaurant",
+        equipmentType: issue.equipmentType,
+        subItem: issue.subItem,
+        commenterName: comment.authorName,
+        commentBody: comment.body,
+        recipients,
+      });
+    })
+    .catch((err) => {
+      log.error({ err }, "Comment notification send failed");
+    });
 });
 
 const DeleteCommentParams = z.object({ id: z.coerce.number().int().positive(), commentId: z.coerce.number().int().positive() });

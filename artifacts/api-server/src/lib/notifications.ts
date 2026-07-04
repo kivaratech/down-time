@@ -54,22 +54,20 @@ async function markAttemptSent(attemptId: number, ticketId: string | undefined) 
   }
 }
 
-export async function notifySupervisorsOfNewIssue(params: {
+// Shared send path for every push notification tied to an issue (new issue,
+// new comment, …). Handles token validation, per-recipient attempt logging,
+// the Expo API call, and ticket reconciliation. Callers just supply the
+// title/body/data — everything issue- or comment-specific lives in the thin
+// wrappers below. `issueId` scopes the attempt-log rows; a comment notification
+// still belongs to an issue, so it reuses the same column.
+async function dispatchIssuePush(params: {
   issueId: number;
-  restaurantName: string;
-  equipmentType: string;
-  subItem?: string | null;
-  description: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
   recipients: NotificationRecipient[];
 }): Promise<void> {
-  const {
-    issueId,
-    restaurantName,
-    equipmentType,
-    subItem,
-    description,
-    recipients,
-  } = params;
+  const { issueId, title, body, data, recipients } = params;
 
   const validRecipients = recipients.filter((r) => isValidExpoPushToken(r.token));
   if (validRecipients.length === 0) return;
@@ -98,15 +96,12 @@ export async function notifySupervisorsOfNewIssue(params: {
     // Continue with send — better to deliver without a log than to skip.
   }
 
-  const equipmentLabel = subItem ? `${equipmentType} · ${subItem}` : equipmentType;
-  const shortDesc = description.length > 80 ? description.slice(0, 77) + "…" : description;
-
   const messages: ExpoPushMessage[] = validRecipients.map((r) => ({
     to: r.token,
-    title: "New issue reported",
-    body: `${restaurantName} — ${equipmentLabel} — ${shortDesc}`,
+    title,
+    body,
     sound: "default",
-    data: { type: "new_issue", issueId },
+    data,
   }));
 
   let tickets: ExpoPushTicket[] | null = null;
@@ -122,9 +117,9 @@ export async function notifySupervisorsOfNewIssue(params: {
     });
 
     if (!response.ok) {
-      const body = await response.text();
-      transportError = `Expo ${response.status}: ${body.slice(0, 500)}`;
-      logger.error({ status: response.status, body }, "Expo push API error");
+      const respBody = await response.text();
+      transportError = `Expo ${response.status}: ${respBody.slice(0, 500)}`;
+      logger.error({ status: response.status, body: respBody }, "Expo push API error");
     } else {
       const result = (await response.json()) as { data: ExpoPushTicket[] };
       tickets = result.data ?? [];
@@ -157,4 +152,52 @@ export async function notifySupervisorsOfNewIssue(params: {
       return markAttemptSent(attempt.id, ticket.id);
     }),
   );
+}
+
+export async function notifySupervisorsOfNewIssue(params: {
+  issueId: number;
+  restaurantName: string;
+  equipmentType: string;
+  subItem?: string | null;
+  description: string;
+  recipients: NotificationRecipient[];
+}): Promise<void> {
+  const { issueId, restaurantName, equipmentType, subItem, description, recipients } = params;
+
+  const equipmentLabel = subItem ? `${equipmentType} · ${subItem}` : equipmentType;
+  const shortDesc = description.length > 80 ? description.slice(0, 77) + "…" : description;
+
+  await dispatchIssuePush({
+    issueId,
+    title: "New issue reported",
+    body: `${restaurantName} — ${equipmentLabel} — ${shortDesc}`,
+    data: { type: "new_issue", issueId },
+    recipients,
+  });
+}
+
+export async function notifyOfNewComment(params: {
+  issueId: number;
+  restaurantName: string;
+  equipmentType: string;
+  subItem?: string | null;
+  commenterName: string;
+  commentBody: string;
+  recipients: NotificationRecipient[];
+}): Promise<void> {
+  const { issueId, restaurantName, equipmentType, subItem, commenterName, commentBody, recipients } = params;
+
+  const equipmentLabel = subItem ? `${equipmentType} · ${subItem}` : equipmentType;
+  const shortBody = commentBody.length > 80 ? commentBody.slice(0, 77) + "…" : commentBody;
+
+  await dispatchIssuePush({
+    issueId,
+    title: `New comment · ${restaurantName}`,
+    body: `${commenterName} on ${equipmentLabel}: ${shortBody}`,
+    // Same `issueId` payload the client already deep-links on, so a tapped
+    // comment notification opens the issue detail (which shows the thread) with
+    // no mobile change required.
+    data: { type: "new_comment", issueId },
+    recipients,
+  });
 }
