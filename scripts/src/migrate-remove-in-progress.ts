@@ -24,8 +24,22 @@
  * can still hold a value the API refuses to serialize. Run BEFORE
  * `drizzle push`; afterwards push should report no changes.
  */
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { loadEnvFile } from "node:process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Load DATABASE_URL from the project-root .env before importing @workspace/db,
+// which throws at import time if it's unset. Same approach as
+// lib/db/drizzle.config.ts — Node 22+'s built-in loadEnvFile, no dotenv dep.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const rootEnv = path.resolve(here, "..", "..", ".env");
+if (!process.env.DATABASE_URL && existsSync(rootEnv)) {
+  loadEnvFile(rootEnv);
+}
+
+const { db } = await import("@workspace/db");
+const { sql } = await import("drizzle-orm");
 
 async function main() {
   console.log("🔧 Removing issue status 'in_progress' (→ open)...\n");
