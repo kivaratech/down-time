@@ -13,6 +13,7 @@
     "reset-passwords": "tsx ./src/reset-passwords.ts",
     "migrate-to-email-login": "tsx ./src/migrate-to-email-login.ts",
     "migrate-priority-levels": "tsx ./src/migrate-priority-levels.ts",
+    "migrate-remove-in-progress": "tsx ./src/migrate-remove-in-progress.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

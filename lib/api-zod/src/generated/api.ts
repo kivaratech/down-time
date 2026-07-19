@@ -130,9 +130,7 @@ export const ListRestaurantIssuesParams = zod.object({
 });
 
 export const ListRestaurantIssuesQueryParams = zod.object({
-  status: zod
-    .enum(["open", "in_progress", "waiting", "resolved", "all"])
-    .optional(),
+  status: zod.enum(["open", "waiting", "resolved", "all"]).optional(),
 });
 
 export const ListRestaurantIssuesResponseItem = zod.object({
@@ -145,7 +143,7 @@ export const ListRestaurantIssuesResponseItem = zod.object({
   subItem: zod.string().nullish(),
   customLabel: zod.string().nullish(),
   description: zod.string(),
-  status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
+  status: zod.enum(["open", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
@@ -163,9 +161,7 @@ export const ListRestaurantIssuesResponse = zod.array(
  */
 export const ListIssuesQueryParams = zod.object({
   restaurantId: zod.coerce.number().optional(),
-  status: zod
-    .enum(["open", "in_progress", "waiting", "resolved", "all"])
-    .optional(),
+  status: zod.enum(["open", "waiting", "resolved", "all"]).optional(),
   category: zod.enum(["equipment", "technology"]).optional(),
   priority: zod.enum(["urgent", "normal", "low"]).optional(),
   assignedTo: zod.coerce.string().optional(),
@@ -182,7 +178,7 @@ export const ListIssuesResponseItem = zod.object({
   subItem: zod.string().nullish(),
   customLabel: zod.string().nullish(),
   description: zod.string(),
-  status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
+  status: zod.enum(["open", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
@@ -225,7 +221,7 @@ export const GetIssueResponse = zod
     subItem: zod.string().nullish(),
     customLabel: zod.string().nullish(),
     description: zod.string(),
-    status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
+    status: zod.enum(["open", "waiting", "resolved"]),
     assignedTo: zod.string().nullish(),
     priority: zod.enum(["urgent", "normal", "low"]).nullish(),
     createdAt: zod.date(),
@@ -256,7 +252,7 @@ export const UpdateIssueParams = zod.object({
 });
 
 export const UpdateIssueBody = zod.object({
-  status: zod.enum(["open", "in_progress", "waiting", "resolved"]).optional(),
+  status: zod.enum(["open", "waiting", "resolved"]).optional(),
   assignedTo: zod.string().nullish(),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   description: zod.string().optional(),
@@ -272,7 +268,7 @@ export const UpdateIssueResponse = zod.object({
   subItem: zod.string().nullish(),
   customLabel: zod.string().nullish(),
   description: zod.string(),
-  status: zod.enum(["open", "in_progress", "waiting", "resolved"]),
+  status: zod.enum(["open", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
@@ -366,12 +362,51 @@ export const ListEquipmentTemplatesResponse = zod.array(
 );
 
 /**
+ * @summary Get the caller's organization settings
+ */
+export const getOrganizationSettingsResponseAgingThresholdDaysMax = 365;
+
+export const GetOrganizationSettingsResponse = zod.object({
+  agingThresholdDays: zod
+    .number()
+    .min(1)
+    .max(getOrganizationSettingsResponseAgingThresholdDaysMax),
+});
+
+/**
+ * @summary Update the caller's organization settings (admin only)
+ */
+export const updateOrganizationSettingsBodyAgingThresholdDaysMax = 365;
+
+export const UpdateOrganizationSettingsBody = zod.object({
+  agingThresholdDays: zod
+    .number()
+    .min(1)
+    .max(updateOrganizationSettingsBodyAgingThresholdDaysMax),
+});
+
+export const updateOrganizationSettingsResponseAgingThresholdDaysMax = 365;
+
+export const UpdateOrganizationSettingsResponse = zod.object({
+  agingThresholdDays: zod
+    .number()
+    .min(1)
+    .max(updateOrganizationSettingsResponseAgingThresholdDaysMax),
+});
+
+/**
  * @summary List all organizations with summary stats
  */
+export const listOrganizationsResponseOneAgingThresholdDaysMax = 365;
+
 export const ListOrganizationsResponseItem = zod
   .object({
     id: zod.number(),
     name: zod.string(),
+    agingThresholdDays: zod
+      .number()
+      .min(1)
+      .max(listOrganizationsResponseOneAgingThresholdDaysMax),
     createdAt: zod.date(),
   })
   .and(
@@ -414,10 +449,16 @@ export const GetOrganizationParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getOrganizationResponseOneAgingThresholdDaysMax = 365;
+
 export const GetOrganizationResponse = zod
   .object({
     id: zod.number(),
     name: zod.string(),
+    agingThresholdDays: zod
+      .number()
+      .min(1)
+      .max(getOrganizationResponseOneAgingThresholdDaysMax),
     createdAt: zod.date(),
   })
   .and(
@@ -466,9 +507,15 @@ export const RenameOrganizationBody = zod.object({
   name: zod.string().min(1).max(renameOrganizationBodyNameMax),
 });
 
+export const renameOrganizationResponseAgingThresholdDaysMax = 365;
+
 export const RenameOrganizationResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
+  agingThresholdDays: zod
+    .number()
+    .min(1)
+    .max(renameOrganizationResponseAgingThresholdDaysMax),
   createdAt: zod.date(),
 });
 

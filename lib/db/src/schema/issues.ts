@@ -21,12 +21,10 @@ export const areaEnum = pgEnum("area", [
 
 export const categoryEnum = pgEnum("category", ["equipment", "technology"]);
 
-export const statusEnum = pgEnum("status", [
-  "open",
-  "in_progress",
-  "waiting",
-  "resolved",
-]);
+// "in_progress" was removed — it was never used in practice (zero rows across
+// the whole issues table) and overlapped with "waiting", which is the state
+// teams actually set. Removed by the migrate-remove-in-progress script.
+export const statusEnum = pgEnum("status", ["open", "waiting", "resolved"]);
 
 // Priority levels, most-severe first. "high" was removed (it was redundant
 // with "urgent"); existing high rows are remapped to urgent by the

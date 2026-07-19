@@ -25,8 +25,6 @@ const Colors = {
   lowBg: "#EEF1F4",
   openStatus: "#2D9651",
   openStatusBg: "#E8F7EE",
-  inProgressStatus: "#4A86CF",
-  inProgressStatusBg: "#EBF2FB",
   waitingStatus: "#E6A817",
   waitingStatusBg: "#FFF8E6",
   resolvedStatus: "#8A9BB0",

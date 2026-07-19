@@ -43,7 +43,7 @@ artifacts-monorepo/
 - **Supervisor login**: Individual username/password with role-based access (admin / supervisor)
 - **Admin user management**: Admin can create, edit, deactivate/reactivate, and reset passwords for supervisor accounts
 - **Supervisor push notifications**: Expo push notifications sent when new issues are created
-- **Restaurant home**: Issues list with status filters (Open / In Progress / Waiting / Resolved / All)
+- **Restaurant home**: Issues list with status filters (Open / Waiting / Resolved / All)
 - **Report issue flow**: Multi-step: Area → Equipment → Sub-item → Description (+ optional photo) → Submit
 - **Photo upload**: Restaurant devices can attach a photo to an issue using the camera or image library; images are stored in GCS object storage and displayed as thumbnails in issue cards and the detail view
 - **Issue detail**: Status update, priority (supervisor only), comments
@@ -97,7 +97,7 @@ Flat color object in `constants/colors.ts`:
 - `accent`: `#E63946` (red/alert)
 - `success`: `#2D9651`
 - `warning`: `#E6A817`
-- Status colors: openStatus, inProgressStatus, waitingStatus, resolvedStatus
+- Status colors: openStatus, waitingStatus, resolvedStatus
 - Priority colors: urgent, high, normal (each with `*Bg` variant)
 
 ### API Routes
@@ -131,7 +131,7 @@ Flat color object in `constants/colors.ts`:
 
 - `area`: Front Counter / Grill / Back of House / Technology
 - `category`: auto-derived (Front Counter/Grill/Back of House → equipment; Technology → technology)
-- `status`: open / in_progress / waiting / resolved
+- `status`: open / waiting / resolved
 - `priority`: urgent / high / normal / null (supervisor-only)
 - Sort: priority desc (urgent first), then createdAt asc (oldest first)
 

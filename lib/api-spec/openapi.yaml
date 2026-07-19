@@ -21,6 +21,8 @@ tags:
     description: Equipment catalog
   - name: storage
     description: Object storage upload and serving endpoints
+  - name: organization
+    description: Per-organization settings for the caller's own org
   - name: super-admin
     description: Platform super-admin operations for provisioning customer organizations
 paths:
@@ -184,7 +186,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [open, in_progress, waiting, resolved, all]
+            enum: [open, waiting, resolved, all]
       responses:
         "200":
           description: List of issues
@@ -211,7 +213,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [open, in_progress, waiting, resolved, all]
+            enum: [open, waiting, resolved, all]
         - name: category
           in: query
           schema:
@@ -484,6 +486,52 @@ paths:
                   $ref: "#/components/schemas/EquipmentTemplateSummary"
         "403":
           description: Super admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/settings:
+    get:
+      operationId: getOrganizationSettings
+      tags: [organization]
+      summary: Get the caller's organization settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organization settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationSettings"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateOrganizationSettings
+      tags: [organization]
+      summary: Update the caller's organization settings (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationSettingsRequest"
+      responses:
+        "200":
+          description: Updated organization settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationSettings"
+        "403":
+          description: Admin access required
           content:
             application/json:
               schema:
@@ -965,7 +1013,7 @@ components:
           type: string
         status:
           type: string
-          enum: [open, in_progress, waiting, resolved]
+          enum: [open, waiting, resolved]
         assignedTo:
           type: string
           nullable: true
@@ -1061,7 +1109,7 @@ components:
       properties:
         status:
           type: string
-          enum: [open, in_progress, waiting, resolved]
+          enum: [open, waiting, resolved]
         assignedTo:
           type: string
           nullable: true
@@ -1149,10 +1197,32 @@ components:
           type: integer
         name:
           type: string
+        agingThresholdDays:
+          type: integer
+          minimum: 1
+          maximum: 365
         createdAt:
           type: string
           format: date-time
-      required: [id, name, createdAt]
+      required: [id, name, agingThresholdDays, createdAt]
+
+    OrganizationSettings:
+      type: object
+      properties:
+        agingThresholdDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+      required: [agingThresholdDays]
+
+    UpdateOrganizationSettingsRequest:
+      type: object
+      properties:
+        agingThresholdDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+      required: [agingThresholdDays]
 
     OrganizationSummary:
       allOf:

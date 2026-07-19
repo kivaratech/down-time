@@ -16,9 +16,16 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
-import { customFetch } from "@workspace/api-client-react";
+import {
+  customFetch,
+  useGetOrganizationSettings,
+  useUpdateOrganizationSettings,
+  getGetOrganizationSettingsQueryKey,
+} from "@workspace/api-client-react";
 
 type SettingsOption = {
   id: string;
@@ -46,7 +53,41 @@ export default function SettingsScreen() {
   const [changePwError, setChangePwError] = useState("");
   const [changePwSaving, setChangePwSaving] = useState(false);
 
+  const [agingVisible, setAgingVisible] = useState(false);
+  const [agingInput, setAgingInput] = useState("");
+  const [agingError, setAgingError] = useState("");
+
+  const queryClient = useQueryClient();
+  const { data: orgSettings } = useGetOrganizationSettings();
+  const { mutateAsync: saveOrgSettings, isPending: agingSaving } =
+    useUpdateOrganizationSettings();
+
   const topPadding = Platform.OS === "web" ? 32 : insets.top;
+
+  function openAgingThreshold() {
+    setAgingInput(String(orgSettings?.agingThresholdDays ?? 14));
+    setAgingError("");
+    setAgingVisible(true);
+  }
+
+  async function doSaveAgingThreshold() {
+    const days = Number(agingInput.trim());
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      setAgingError("Enter a whole number of days between 1 and 365.");
+      return;
+    }
+    setAgingError("");
+    try {
+      await saveOrgSettings({ data: { agingThresholdDays: days } });
+      // Refresh the dashboard's copy so the Aging tiles recount immediately.
+      await queryClient.invalidateQueries({
+        queryKey: getGetOrganizationSettingsQueryKey(),
+      });
+      setAgingVisible(false);
+    } catch (err: any) {
+      setAgingError(err?.data?.error ?? err?.message ?? "Something went wrong.");
+    }
+  }
 
   function openChangePassword() {
     setCurrentPassword("");
@@ -107,6 +148,16 @@ export default function SettingsScreen() {
       title: "Users",
       subtitle: "Manage team members",
       route: "/(supervisor)/users",
+      adminOnly: true,
+    },
+    {
+      id: "aging-threshold",
+      icon: "clock",
+      title: "Aging Threshold",
+      subtitle: orgSettings
+        ? `Issues older than ${orgSettings.agingThresholdDays} days count as aging`
+        : "Set when an issue counts as aging",
+      onPress: openAgingThreshold,
       adminOnly: true,
     },
     {
@@ -185,6 +236,56 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Aging Threshold Modal (admin only) */}
+      <Modal
+        visible={agingVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setAgingVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setAgingVisible(false)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Aging Threshold</Text>
+            <TouchableOpacity onPress={doSaveAgingThreshold} disabled={agingSaving}>
+              {agingSaving ? (
+                <ActivityIndicator color={Colors.primary} />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+            {!!agingError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{agingError}</Text>
+              </View>
+            )}
+
+            <Text style={styles.fieldLabel}>Days</Text>
+            <TextInput
+              style={styles.input}
+              value={agingInput}
+              onChangeText={setAgingInput}
+              placeholder="14"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="number-pad"
+              autoFocus
+            />
+            <Text style={styles.fieldHint}>
+              Unresolved issues older than this count toward the Aging stat on the
+              dashboard. Applies to everyone in your organization.
+            </Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Change Password Modal */}
       <Modal
@@ -423,6 +524,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  fieldHint: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 19,
+    marginTop: -8,
   },
   input: {
     backgroundColor: Colors.surface,

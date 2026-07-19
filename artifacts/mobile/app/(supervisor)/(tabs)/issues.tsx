@@ -35,12 +35,11 @@ type PriorityFilter = ListIssuesPriority | "all";
 
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "open", label: "Open" },
-  { key: "in_progress", label: "In Progress" },
   { key: "waiting", label: "Waiting" },
   { key: "resolved", label: "Resolved" },
-  // "Active" (key "all") = all outstanding work (open + in_progress + waiting).
-  // Resolved issues are deliberately excluded here and only appear under the
-  // "Resolved" filter — see the filteredIssues note below.
+  // "Active" (key "all") = all outstanding work (open + waiting). Resolved
+  // issues are deliberately excluded here and only appear under the "Resolved"
+  // filter — see the filteredIssues note below.
   { key: "all", label: "Active" },
 ];
 
@@ -96,7 +95,7 @@ export default function SupervisorIssuesScreen() {
 
   // Apply filters passed in from the dashboard summary cards. Keyed on `ts`
   // so each navigation re-applies even when the same card is tapped again.
-  const params = useLocalSearchParams<{ status?: string; priority?: string; restaurantId?: string; ts?: string }>();
+  const params = useLocalSearchParams<{ status?: string; priority?: string; restaurantId?: string; agingDays?: string; ts?: string }>();
   useEffect(() => {
     if (typeof params.status === "string") {
       setStatusFilter(params.status as StatusFilter);
@@ -107,6 +106,15 @@ export default function SupervisorIssuesScreen() {
     if (typeof params.restaurantId === "string") {
       const id = Number(params.restaurantId);
       setRestaurantFilter(params.restaurantId === "all" || !Number.isFinite(id) ? null : id);
+    }
+    // "none" = the dashboard tile explicitly wants no age filter (every tile
+    // but Aging). A numeric value comes from the Aging tile and carries the
+    // org's configured threshold, which may not match any AGING_OPTIONS preset
+    // — the chip renders the raw number, so a custom threshold still reads
+    // correctly.
+    if (typeof params.agingDays === "string") {
+      const days = Number(params.agingDays);
+      setAgingFilter(params.agingDays === "none" || !Number.isFinite(days) ? null : days);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.ts]);
@@ -128,8 +136,8 @@ export default function SupervisorIssuesScreen() {
     ? (issues ?? [])
     : (issues ?? []).filter((i) => i.area === areaFilter);
 
-  // The "Active" filter (key "all") shows outstanding work only — open,
-  // in_progress, waiting — and deliberately excludes resolved issues. Resolved
+  // The "Active" filter (key "all") shows outstanding work only — open and
+  // waiting — and deliberately excludes resolved issues. Resolved
   // only appears under the dedicated "Resolved" filter. The server returns
   // resolved rows for status=all, so we drop them client-side here. This also
   // makes the list match the dashboard "Total" stat, which navigates here with

@@ -10,7 +10,6 @@ export type IssueStatus = (typeof IssueStatus)[keyof typeof IssueStatus];
 
 export const IssueStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
 } as const;

@@ -11,7 +11,6 @@ export type ListIssuesStatus =
 
 export const ListIssuesStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
   all: "all",

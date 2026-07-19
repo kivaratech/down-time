@@ -11,7 +11,6 @@ export type ListRestaurantIssuesStatus =
 
 export const ListRestaurantIssuesStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
   all: "all",

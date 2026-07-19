@@ -23,7 +23,6 @@ import IssueCard from "@/components/IssueCard";
 const STATUS_FILTERS = [
   { key: "all" as const, label: "All" },
   { key: "open" as const, label: "Open" },
-  { key: "in_progress" as const, label: "In Progress" },
   { key: "waiting" as const, label: "Waiting" },
   { key: "resolved" as const, label: "Resolved" },
 ];

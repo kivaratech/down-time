@@ -6,6 +6,7 @@ import issuesRouter from "./issues";
 import equipmentRouter from "./equipment";
 import adminUsersRouter from "./admin-users";
 import storageRouter from "./storage";
+import organizationRouter from "./organization";
 import superAdminRouter from "./super-admin";
 
 const router: IRouter = Router();
@@ -17,6 +18,7 @@ router.use(issuesRouter);
 router.use(equipmentRouter);
 router.use(adminUsersRouter);
 router.use(storageRouter);
+router.use(organizationRouter);
 router.use(superAdminRouter);
 
 export default router;

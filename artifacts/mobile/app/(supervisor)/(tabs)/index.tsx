@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import {
   listRestaurants,
   listIssues,
+  useGetOrganizationSettings,
   type Restaurant,
   type Issue,
 } from "@workspace/api-client-react";
@@ -28,24 +29,41 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import IssueCard from "@/components/IssueCard";
 
-type IssueNavFilters = { status: string; priority: string; restaurantId: string | number };
+type IssueNavFilters = {
+  status: string;
+  priority: string;
+  restaurantId: string | number;
+  agingDays?: number;
+};
+
+// Mirrors the organizations.aging_threshold_days column default. Used only as
+// a client-side fallback before the settings request resolves.
+const DEFAULT_AGING_THRESHOLD_DAYS = 14;
+
+/** True if an unresolved issue has sat longer than the org's aging threshold. */
+function isAging(issue: Issue, thresholdDays: number): boolean {
+  const ageMs = Date.now() - new Date(issue.createdAt).getTime();
+  return ageMs > thresholdDays * 86_400_000;
+}
 
 function RestaurantStatCard({
   restaurant,
   issues,
+  agingThresholdDays,
   onStatPress,
 }: {
   restaurant: Restaurant;
   issues: Issue[];
+  agingThresholdDays: number;
   onStatPress: (filters: IssueNavFilters) => void;
 }) {
   // Every stat on this card reflects outstanding work only — once an issue
-  // is resolved it drops out of the urgent badge, Total, and quick rows
+  // is resolved it drops out of the urgent badge, Total, Aging, and quick rows
   // regardless of its priority.
   const activeIssues = issues.filter((i) => i.status !== "resolved");
   const openCount = activeIssues.filter((i) => i.status === "open").length;
   const urgentCount = activeIssues.filter((i) => i.priority === "urgent").length;
-  const inProgressCount = activeIssues.filter((i) => i.status === "in_progress").length;
+  const agingCount = activeIssues.filter((i) => isAging(i, agingThresholdDays)).length;
   const activeCount = activeIssues.length;
   const quickIssues = activeIssues
     .filter((i) => i.priority === "urgent" || i.status === "open")
@@ -78,20 +96,34 @@ function RestaurantStatCard({
         <View style={styles.statDivider} />
         <TouchableOpacity
           style={styles.statItem}
-          onPress={() => onStatPress({ status: "in_progress", priority: "all", restaurantId: restaurant.id })}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.statValue, { color: Colors.inProgressStatus }]}>{inProgressCount}</Text>
-          <Text style={styles.statLabel}>In Progress</Text>
-        </TouchableOpacity>
-        <View style={styles.statDivider} />
-        <TouchableOpacity
-          style={styles.statItem}
           onPress={() => onStatPress({ status: "all", priority: "all", restaurantId: restaurant.id })}
           activeOpacity={0.7}
         >
           <Text style={[styles.statValue, { color: Colors.textSecondary }]}>{activeCount}</Text>
           <Text style={styles.statLabel}>Total</Text>
+        </TouchableOpacity>
+        <View style={styles.statDivider} />
+        <TouchableOpacity
+          style={styles.statItem}
+          onPress={() =>
+            onStatPress({
+              status: "all",
+              priority: "all",
+              restaurantId: restaurant.id,
+              agingDays: agingThresholdDays,
+            })
+          }
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.statValue,
+              { color: agingCount > 0 ? Colors.warning : Colors.textSecondary },
+            ]}
+          >
+            {agingCount}
+          </Text>
+          <Text style={styles.statLabel}>Aging</Text>
         </TouchableOpacity>
       </View>
 
@@ -160,6 +192,9 @@ export default function SupervisorDashboardScreen() {
         status: filters.status,
         priority: filters.priority,
         restaurantId: String(filters.restaurantId),
+        // Omitted (rather than "all") for non-aging tiles so the issues screen
+        // can tell "clear the age filter" from "don't touch it".
+        agingDays: filters.agingDays != null ? String(filters.agingDays) : "none",
         ts: String(Date.now()),
       },
     });
@@ -170,6 +205,11 @@ export default function SupervisorDashboardScreen() {
     queryFn: listRestaurants,
     staleTime: 0,
   });
+
+  // Org-wide aging threshold. Falls back to 14 days while loading or if the
+  // request fails so the Aging tile always renders a number.
+  const { data: orgSettings } = useGetOrganizationSettings();
+  const agingThresholdDays = orgSettings?.agingThresholdDays ?? DEFAULT_AGING_THRESHOLD_DAYS;
 
   const { data: allIssues, isLoading: issuesLoading, refetch, isRefetching } = useQuery({
     queryKey: ["supervisor-issues-all", supervisor?.id],
@@ -195,7 +235,7 @@ export default function SupervisorDashboardScreen() {
   const activeIssues = allIssues?.filter((i) => i.status !== "resolved") ?? [];
   const totalOpen = activeIssues.filter((i) => i.status === "open").length;
   const totalUrgent = activeIssues.filter((i) => i.priority === "urgent").length;
-  const totalInProgress = activeIssues.filter((i) => i.status === "in_progress").length;
+  const totalActive = activeIssues.length;
   const restaurantCount = restaurants?.length ?? 0;
 
   return (
@@ -257,12 +297,12 @@ export default function SupervisorDashboardScreen() {
           <Text style={[styles.summaryLabel, { color: Colors.openStatus }]}>Open</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.summaryCard, { backgroundColor: Colors.inProgressStatusBg }]}
-          onPress={() => goToIssues({ status: "in_progress", priority: "all", restaurantId: "all" })}
+          style={[styles.summaryCard, { backgroundColor: Colors.lowBg }]}
+          onPress={() => goToIssues({ status: "all", priority: "all", restaurantId: "all" })}
           activeOpacity={0.75}
         >
-          <Text style={[styles.summaryValue, { color: Colors.inProgressStatus }]}>{totalInProgress}</Text>
-          <Text style={[styles.summaryLabel, { color: Colors.inProgressStatus }]}>In Progress</Text>
+          <Text style={[styles.summaryValue, { color: Colors.textSecondary }]}>{totalActive}</Text>
+          <Text style={[styles.summaryLabel, { color: Colors.textSecondary }]}>Total</Text>
         </TouchableOpacity>
       </View>
 
@@ -282,6 +322,7 @@ export default function SupervisorDashboardScreen() {
             key={restaurant.id}
             restaurant={restaurant}
             issues={restaurantIssues}
+            agingThresholdDays={agingThresholdDays}
             onStatPress={goToIssues}
           />
         );

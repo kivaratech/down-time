@@ -27,8 +27,6 @@ function getStatusStyle(status: string) {
   switch (status) {
     case "open":
       return { bg: Colors.openStatusBg, text: Colors.openStatus, label: "Open" };
-    case "in_progress":
-      return { bg: Colors.inProgressStatusBg, text: Colors.inProgressStatus, label: "In Progress" };
     case "waiting":
       return { bg: Colors.waitingStatusBg, text: Colors.waitingStatus, label: "Waiting" };
     case "resolved":

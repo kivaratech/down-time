@@ -6,13 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Organization {
-  id: number;
-  name: string;
+export interface OrganizationSettings {
   /**
    * @minimum 1
    * @maximum 365
    */
   agingThresholdDays: number;
-  createdAt: Date;
 }

@@ -109,7 +109,6 @@ export type IssueStatus = (typeof IssueStatus)[keyof typeof IssueStatus];
 
 export const IssueStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
 } as const;
@@ -182,7 +181,6 @@ export type UpdateIssueRequestStatus =
 
 export const UpdateIssueRequestStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
 } as const;
@@ -260,7 +258,28 @@ export interface UploadUrlResponse {
 export interface Organization {
   id: number;
   name: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  agingThresholdDays: number;
   createdAt: string;
+}
+
+export interface OrganizationSettings {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  agingThresholdDays: number;
+}
+
+export interface UpdateOrganizationSettingsRequest {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  agingThresholdDays: number;
 }
 
 export type OrganizationSummary = Organization & {
@@ -388,7 +407,6 @@ export type ListRestaurantIssuesStatus =
 
 export const ListRestaurantIssuesStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
   all: "all",
@@ -408,7 +426,6 @@ export type ListIssuesStatus =
 
 export const ListIssuesStatus = {
   open: "open",
-  in_progress: "in_progress",
   waiting: "waiting",
   resolved: "resolved",
   all: "all",

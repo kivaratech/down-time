@@ -43,7 +43,6 @@ type IssuePriority = UpdateIssueRequestPriority;
 
 const STATUS_OPTIONS: { value: IssueStatus; label: string; color: string; bg: string }[] = [
   { value: "open", label: "Open", color: Colors.openStatus, bg: Colors.openStatusBg },
-  { value: "in_progress", label: "In Progress", color: Colors.inProgressStatus, bg: Colors.inProgressStatusBg },
   { value: "waiting", label: "Waiting", color: Colors.waitingStatus, bg: Colors.waitingStatusBg },
   { value: "resolved", label: "Resolved", color: Colors.resolvedStatus, bg: Colors.resolvedStatusBg },
 ];

@@ -100,7 +100,7 @@ Every API request resolves to a `req.principal` (set by `middleware/principal.ts
 - `organizations.ts` — Tenant root. Every other entity row belongs to exactly one org (super_admins are the lone exception).
 - `restaurants.ts`, `supervisors.ts` — Core entities; both carry `organizationId` (NOT NULL on restaurants, nullable on supervisors with the `supervisors_org_required` CHECK + composite/partial unique on username).
 - `sessions.ts` — `device_sessions`, `supervisor_sessions`, `pairing_codes` (org-derived via their parent rows).
-- `issues.ts` — Issues with enums: area (4 types), status (open/in_progress/waiting/resolved), priority (urgent/high/normal). Denormalized `organizationId` (NOT NULL) for fast list scoping.
+- `issues.ts` — Issues with enums: area (4 types), status (open/waiting/resolved), priority (urgent/normal/low). Denormalized `organizationId` (NOT NULL) for fast list scoping.
 - `comments.ts` — Issue comments (org-derived via issue).
 - `equipment.ts` — `equipment_items` — per-org equipment catalog (was a single global catalog before Phase 1).
 - `supervisor-restaurants.ts` — M2M assignment of supervisors to restaurants within their org.
