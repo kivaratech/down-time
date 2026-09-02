@@ -581,4 +581,197 @@ router.get("/data-deletion", (_req, res) => {
   res.send(DATA_DELETION_HTML);
 });
 
+// Public support page. App Store Connect requires a Support URL and will not
+// accept a bare mailto: link, so this gives reviewers (and real customers) a
+// genuine self-serve help page. It also documents the tablet pairing flow,
+// which is the part reviewers most often get stuck on.
+const SUPPORT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DownTime Support</title>
+  <style>
+    :root {
+      --primary: #0F3460;
+      --text: #0D1B2A;
+      --text-secondary: #5C6B82;
+      --border: #E4E8EF;
+      --bg: #F8F9FB;
+      --surface: #FFFFFF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 48px 20px 32px;
+      text-align: center;
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    header p {
+      margin: 0;
+      opacity: 0.8;
+      font-size: 14px;
+    }
+    main {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      margin-top: -24px;
+    }
+    h2 {
+      font-size: 19px;
+      margin: 28px 0 10px;
+      color: var(--primary);
+    }
+    h2:first-of-type { margin-top: 0; }
+    p, ul { margin: 0 0 12px; }
+    ul { padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    .muted {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .updated {
+      display: inline-block;
+      background: rgba(15,52,96,0.08);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    code {
+      background: rgba(15,52,96,0.08);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 90%;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #E8ECF2;
+        --text-secondary: #9BAABB;
+        --border: #2A3445;
+        --bg: #0D1B2A;
+        --surface: #131F33;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DownTime Support</h1>
+    <p>Help with the DownTime restaurant equipment issue tracker</p>
+  </header>
+  <div class="container">
+    <main>
+      <h2>Contact us</h2>
+      <p>
+        The fastest way to get help is email. We reply to support requests
+        within two business days.
+      </p>
+      <p>
+        <strong>Kivara Tech</strong><br />
+        <a href="mailto:kivara.tech@gmail.com?subject=DownTime%20support">kivara.tech@gmail.com</a>
+      </p>
+
+      <h2>Getting an account</h2>
+      <p>
+        DownTime accounts are created for you, not self-registered. If your
+        restaurant group already uses DownTime, ask your organization admin
+        to add you and they will send your login email and a temporary
+        password. If your company is not set up on DownTime yet, email us and
+        we will provision your organization.
+      </p>
+
+      <h2>Signing in</h2>
+      <p>
+        Supervisors and admins sign in with their email address and password
+        on the <em>Supervisor</em> option of the login screen. If you have
+        forgotten your password, your organization admin can reset it for you
+        from the Users screen.
+      </p>
+
+      <h2>Pairing a restaurant tablet</h2>
+      <p>
+        Tablets mounted in a restaurant run in device mode, which does not
+        require anyone to log in. To pair one:
+      </p>
+      <ul>
+        <li>Sign in as a supervisor or admin on any device.</li>
+        <li>Go to <strong>Settings</strong> &rarr; <strong>Device Pairing</strong>.</li>
+        <li>Pick the restaurant and generate a six-character pairing code.</li>
+        <li>
+          On the tablet, choose <strong>Restaurant Tablet</strong> on the
+          login screen and enter the code.
+        </li>
+      </ul>
+      <p>
+        Pairing codes expire fifteen minutes after they are generated. If the
+        code stops working, simply generate a new one.
+      </p>
+
+      <h2>Reporting an issue</h2>
+      <p>
+        From a paired tablet or from the supervisor app, tap
+        <strong>Report an Issue</strong>, choose the area and the piece of
+        equipment, describe the problem, and optionally attach a photo from
+        the camera or photo library. Supervisors assigned to that restaurant
+        are notified straight away.
+      </p>
+
+      <h2>Notifications</h2>
+      <p>
+        Supervisors and admins receive push notifications for new issues and
+        for comments on issues they follow. Notifications are filtered by
+        your specialty, so equipment supervisors are not paged about
+        technology issues and vice versa. If notifications are not arriving,
+        check that they are enabled for DownTime in your device settings.
+      </p>
+
+      <h2>Privacy and your data</h2>
+      <p>
+        See our <a href="/privacy">Privacy Policy</a> for what we collect and
+        how it is stored, or our
+        <a href="/data-deletion">Data Deletion</a> page to request removal of
+        your account and data.
+      </p>
+
+      <p class="muted" style="margin-top: 32px;">
+        DownTime is a product of Kivara Tech.
+      </p>
+    </main>
+  </div>
+</body>
+</html>`;
+
+router.get("/support", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(SUPPORT_HTML);
+});
+
 export default router;

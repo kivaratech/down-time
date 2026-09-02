@@ -19,7 +19,11 @@
       "buildNumber": "3",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
@@ -56,6 +60,14 @@
           "icon": "./assets/images/icon.png",
           "color": "#0F3460",
           "sounds": []
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DownTime uses your photo library so you can attach photos of broken equipment to an issue report.",
+          "cameraPermission": "DownTime uses your camera so you can photograph broken equipment when reporting an issue.",
+          "microphonePermission": false
         }
       ]
     ],
