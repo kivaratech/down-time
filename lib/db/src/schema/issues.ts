@@ -47,6 +47,11 @@ export const issuesTable = pgTable(
     description: text("description").notNull(),
     status: statusEnum("status").notNull().default("open"),
     assignedTo: text("assigned_to"),
+    // Free-text name of the person who reported the issue. Typed in on shared
+    // restaurant tablets (required by the app there); stamped from the account
+    // name for logged-in supervisors/admins. Nullable: issues created before
+    // this column existed, or by an older app bundle, have no reporter.
+    reportedBy: text("reported_by"),
     priority: priorityEnum("priority"),
     imageUrl: text("image_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { stripObjectPlaceholders } from "@/lib/cleanText";
 import { formatTimestamp } from "@/lib/formatDateTime";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
@@ -116,7 +117,7 @@ export default function IssueCard({ issue, showRestaurant }: Props) {
 
       <View style={styles.descriptionRow}>
         <Text style={[styles.description, thumbUri && !thumbError && styles.descriptionWithThumb]} numberOfLines={2}>
-          {issue.description}
+          {stripObjectPlaceholders(issue.description)}
         </Text>
         {thumbUri && !thumbError && (
           <Image
@@ -130,7 +131,10 @@ export default function IssueCard({ issue, showRestaurant }: Props) {
 
       <View style={styles.cardFooter}>
         <View style={styles.footerLeft}>
-          <Text style={styles.age}>{getAgeLabel(issue.createdAt)}</Text>
+          <Text style={styles.age} numberOfLines={1}>
+            {getAgeLabel(issue.createdAt)}
+            {issue.reportedBy ? ` · ${issue.reportedBy}` : ""}
+          </Text>
           <Text style={styles.timestamp}>{formatTimestamp(issue.createdAt)}</Text>
         </View>
         <View style={styles.footerRight}>

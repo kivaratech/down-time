@@ -145,6 +145,10 @@ export const ListRestaurantIssuesResponseItem = zod.object({
   description: zod.string(),
   status: zod.enum(["open", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
+  reportedBy: zod
+    .string()
+    .nullish()
+    .describe("Name of the person who reported the issue, when known."),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -180,6 +184,10 @@ export const ListIssuesResponseItem = zod.object({
   description: zod.string(),
   status: zod.enum(["open", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
+  reportedBy: zod
+    .string()
+    .nullish()
+    .describe("Name of the person who reported the issue, when known."),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -200,6 +208,12 @@ export const CreateIssueBody = zod.object({
   customLabel: zod.string().nullish(),
   description: zod.string(),
   assignedTo: zod.string().nullish(),
+  reportedBy: zod
+    .string()
+    .nullish()
+    .describe(
+      "Name of the person reporting. Sent by restaurant tablets. Ignored for supervisor\/admin callers, whose account name is used instead.\n",
+    ),
   imageUrl: zod.string().nullish(),
 });
 
@@ -223,6 +237,10 @@ export const GetIssueResponse = zod
     description: zod.string(),
     status: zod.enum(["open", "waiting", "resolved"]),
     assignedTo: zod.string().nullish(),
+    reportedBy: zod
+      .string()
+      .nullish()
+      .describe("Name of the person who reported the issue, when known."),
     priority: zod.enum(["urgent", "normal", "low"]).nullish(),
     createdAt: zod.date(),
     updatedAt: zod.date(),
@@ -239,6 +257,26 @@ export const GetIssueResponse = zod
           authorName: zod.string(),
           body: zod.string(),
           createdAt: zod.date(),
+          reactions: zod.array(
+            zod
+              .object({
+                emoji: zod.string(),
+                count: zod.number(),
+                reactedByMe: zod
+                  .boolean()
+                  .describe(
+                    "True when the caller (the supervisor, or the tablet's restaurant) has this reaction.",
+                  ),
+                names: zod
+                  .array(zod.string())
+                  .describe(
+                    "Display names of everyone who reacted with this emoji.",
+                  ),
+              })
+              .describe(
+                "One emoji's reactions on a comment, aggregated across everyone who used it.",
+              ),
+          ),
         }),
       ),
     }),
@@ -270,6 +308,10 @@ export const UpdateIssueResponse = zod.object({
   description: zod.string(),
   status: zod.enum(["open", "waiting", "resolved"]),
   assignedTo: zod.string().nullish(),
+  reportedBy: zod
+    .string()
+    .nullish()
+    .describe("Name of the person who reported the issue, when known."),
   priority: zod.enum(["urgent", "normal", "low"]).nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -299,6 +341,50 @@ export const AddCommentParams = zod.object({
 export const AddCommentBody = zod.object({
   authorName: zod.string(),
   body: zod.string(),
+});
+
+/**
+ * Adds the emoji reaction for the caller if they have not reacted with it yet, otherwise removes it. Supervisors/admins react as themselves; a paired tablet reacts as its restaurant. Returns the updated comment.
+
+ * @summary Toggle an emoji reaction on a comment
+ */
+export const ToggleCommentReactionParams = zod.object({
+  id: zod.coerce.number(),
+  commentId: zod.coerce.number(),
+});
+
+export const ToggleCommentReactionBody = zod.object({
+  emoji: zod
+    .string()
+    .describe(
+      "One of the supported reaction emoji. The server rejects anything else.",
+    ),
+});
+
+export const ToggleCommentReactionResponse = zod.object({
+  id: zod.number(),
+  issueId: zod.number(),
+  authorName: zod.string(),
+  body: zod.string(),
+  createdAt: zod.date(),
+  reactions: zod.array(
+    zod
+      .object({
+        emoji: zod.string(),
+        count: zod.number(),
+        reactedByMe: zod
+          .boolean()
+          .describe(
+            "True when the caller (the supervisor, or the tablet's restaurant) has this reaction.",
+          ),
+        names: zod
+          .array(zod.string())
+          .describe("Display names of everyone who reacted with this emoji."),
+      })
+      .describe(
+        "One emoji's reactions on a comment, aggregated across everyone who used it.",
+      ),
+  ),
 });
 
 /**

@@ -392,6 +392,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /issues/{id}/comments/{commentId}/reactions:
+    post:
+      operationId: toggleCommentReaction
+      tags: [comments]
+      summary: Toggle an emoji reaction on a comment
+      description: >
+        Adds the emoji reaction for the caller if they have not reacted with it
+        yet, otherwise removes it. Supervisors/admins react as themselves; a
+        paired tablet reacts as its restaurant. Returns the updated comment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleReactionRequest"
+      responses:
+        "200":
+          description: Updated comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Unsupported emoji or invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Issue or comment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /equipment:
     get:
       operationId: getEquipment
@@ -1017,6 +1065,10 @@ components:
         assignedTo:
           type: string
           nullable: true
+        reportedBy:
+          type: string
+          nullable: true
+          description: Name of the person who reported the issue, when known.
         priority:
           type: string
           enum: [urgent, normal, low]
@@ -1076,7 +1128,37 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, issueId, authorName, body, createdAt]
+        reactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommentReaction"
+      required: [id, issueId, authorName, body, createdAt, reactions]
+
+    CommentReaction:
+      type: object
+      description: One emoji's reactions on a comment, aggregated across everyone who used it.
+      properties:
+        emoji:
+          type: string
+        count:
+          type: integer
+        reactedByMe:
+          type: boolean
+          description: True when the caller (the supervisor, or the tablet's restaurant) has this reaction.
+        names:
+          type: array
+          description: Display names of everyone who reacted with this emoji.
+          items:
+            type: string
+      required: [emoji, count, reactedByMe, names]
+
+    ToggleReactionRequest:
+      type: object
+      properties:
+        emoji:
+          type: string
+          description: One of the supported reaction emoji. The server rejects anything else.
+      required: [emoji]
 
     CreateIssueRequest:
       type: object
@@ -1099,6 +1181,12 @@ components:
         assignedTo:
           type: string
           nullable: true
+        reportedBy:
+          type: string
+          nullable: true
+          description: >
+            Name of the person reporting. Sent by restaurant tablets. Ignored
+            for supervisor/admin callers, whose account name is used instead.
         imageUrl:
           type: string
           nullable: true

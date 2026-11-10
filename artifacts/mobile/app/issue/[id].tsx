@@ -4,9 +4,11 @@ import {
   useUpdateIssue,
   useAddComment,
   useDeleteIssue,
+  useToggleCommentReaction,
   getGetIssueQueryKey,
   getListIssuesQueryKey,
   getListRestaurantIssuesQueryKey,
+  type IssueWithComments,
   type UpdateIssueRequestStatus,
   type UpdateIssueRequestPriority,
 } from "@workspace/api-client-react";
@@ -28,10 +30,14 @@ import {
   Modal,
 } from "react-native";
 
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
+import ZoomableImage from "@/components/ZoomableImage";
 import Colors from "@/constants/colors";
+import { REACTION_EMOJI } from "@/constants/reactions";
+import { stripObjectPlaceholders } from "@/lib/cleanText";
 import { formatTimestamp } from "@/lib/formatDateTime";
 
 import { useAuth } from "@/context/AuthContext";
@@ -69,6 +75,14 @@ function getTimeLabel(dateStr: string): string {
   return d.toLocaleDateString();
 }
 
+// First character of a name for the comment avatar. Array.from splits by
+// code point, so a name that starts with an emoji yields the whole emoji
+// rather than half of its surrogate pair (which renders as a broken glyph).
+function getInitial(name: string | null | undefined): string {
+  const first = Array.from((name ?? "").trim())[0];
+  return first ? first.toUpperCase() : "?";
+}
+
 export default function IssueDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -87,6 +101,10 @@ export default function IssueDetailScreen() {
   const [assignedToInput, setAssignedToInput] = useState<string | null>(null);
   const [editingAssignment, setEditingAssignment] = useState(false);
   const [imageError, setImageError] = useState(false);
+  // Comment whose reaction picker is open (one at a time), and the reaction
+  // whose "who reacted" sheet is showing.
+  const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
+  const [reactionDetail, setReactionDetail] = useState<{ emoji: string; names: string[] } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const { data: issue, isLoading } = useGetIssue(Number(id), {
@@ -157,6 +175,25 @@ export default function IssueDetailScreen() {
     },
   });
 
+  const reactionMutation = useToggleCommentReaction({
+    mutation: {
+      // The server returns the comment with its updated reactions — patch it
+      // into the cached issue so the chips update without refetching the
+      // whole issue (and re-signing its photo URL).
+      onSuccess: (updated) => {
+        queryClient.setQueryData<IssueWithComments>(getGetIssueQueryKey(Number(id)), (prev) =>
+          prev
+            ? { ...prev, comments: prev.comments.map((c) => (c.id === updated.id ? updated : c)) }
+            : prev,
+        );
+      },
+      // e.g. the comment was deleted by an admin in the meantime — resync.
+      onError: () => {
+        queryClient.invalidateQueries({ queryKey: getGetIssueQueryKey(Number(id)) });
+      },
+    },
+  });
+
   if (isLoading || !issue) {
     return (
       <View style={[styles.loadingContainer]}>
@@ -169,6 +206,10 @@ export default function IssueDetailScreen() {
   const imageUri = issue.imageUrl
     ? (isSignedUrl ? issue.imageUrl : `${API_BASE}/api/storage/objects/${issue.imageUrl}`)
     : null;
+
+  // The comment as it will be sent: minus the invisible placeholders iOS
+  // dictation leaves behind (Android shows them as "OBJ").
+  const cleanComment = stripObjectPlaceholders(comment).trim();
 
   const currentStatus = localStatus ?? (issue.status as IssueStatus);
   const statusStyle = STATUS_OPTIONS.find((s) => s.value === currentStatus) ?? STATUS_OPTIONS[0];
@@ -191,14 +232,20 @@ export default function IssueDetailScreen() {
     priorityMutation.mutate({ id: Number(id), data: { priority: newPriority } });
   }
 
+  async function handleToggleReaction(commentId: number, emoji: string) {
+    setReactionPickerFor(null);
+    await Haptics.selectionAsync();
+    reactionMutation.mutate({ id: Number(id), commentId, data: { emoji } });
+  }
+
   async function handleAddComment() {
-    if (!comment.trim() || addingComment) return;
+    if (!cleanComment || addingComment) return;
     setAddingComment(true);
     await Haptics.selectionAsync();
     const authorName = isSupervisor
       ? (supervisor?.name ?? "Supervisor")
       : (restaurant?.name ?? "Restaurant Staff");
-    commentMutation.mutate({ id: Number(id), data: { authorName, body: comment.trim() } });
+    commentMutation.mutate({ id: Number(id), data: { authorName, body: cleanComment } });
     setAddingComment(false);
   }
 
@@ -256,7 +303,9 @@ export default function IssueDetailScreen() {
             )}
           </View>
 
-          <Text style={styles.description}>{issue.description}</Text>
+          {/* Issues saved before the cleanup existed still hold dictation
+              placeholders, so strip them at display time too. */}
+          <Text style={styles.description}>{stripObjectPlaceholders(issue.description)}</Text>
 
           {imageUri && (
             imageError ? (
@@ -285,7 +334,10 @@ export default function IssueDetailScreen() {
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
               <Feather name="clock" size={14} color={Colors.textTertiary} />
-              <Text style={styles.metaText}>Reported {getTimeLabel(issue.createdAt)}</Text>
+              <Text style={styles.metaText}>
+                Reported {getTimeLabel(issue.createdAt)}
+                {issue.reportedBy ? ` by ${issue.reportedBy}` : ""}
+              </Text>
             </View>
             {issue.assignedTo && (
               <View style={styles.metaItem}>
@@ -412,9 +464,7 @@ export default function IssueDetailScreen() {
           {issue.comments?.map((c) => (
             <View key={c.id} style={styles.commentItem}>
               <View style={styles.commentAvatar}>
-                <Text style={styles.commentAvatarText}>
-                  {(c.authorName ?? "?").charAt(0).toUpperCase()}
-                </Text>
+                <Text style={styles.commentAvatarText}>{getInitial(c.authorName)}</Text>
               </View>
               <View style={styles.commentBody}>
                 <View style={styles.commentHeader}>
@@ -422,7 +472,59 @@ export default function IssueDetailScreen() {
                   <Text style={styles.commentTime}>{getTimeLabel(c.createdAt)}</Text>
                 </View>
                 <Text style={styles.commentTimestamp}>{formatTimestamp(c.createdAt)}</Text>
-                <Text style={styles.commentText}>{c.body}</Text>
+                <Text style={styles.commentText}>{stripObjectPlaceholders(c.body)}</Text>
+
+                {/* Reactions: one chip per emoji in use (tap to add/remove
+                    yours, hold to see who reacted) plus a button that opens
+                    the picker. `?? []` covers a server that predates reactions. */}
+                <View style={styles.reactionRow}>
+                  {(c.reactions ?? []).map((r) => (
+                    <TouchableOpacity
+                      key={r.emoji}
+                      style={[styles.reactionChip, r.reactedByMe && styles.reactionChipMine]}
+                      onPress={() => handleToggleReaction(c.id, r.emoji)}
+                      onLongPress={() => setReactionDetail({ emoji: r.emoji, names: r.names })}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${r.emoji} ${r.count}, from ${r.names.join(", ")}`}
+                    >
+                      <Text style={styles.reactionEmoji}>{r.emoji}</Text>
+                      <Text style={[styles.reactionCount, r.reactedByMe && styles.reactionCountMine]}>
+                        {r.count}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[styles.addReactionBtn, reactionPickerFor === c.id && styles.addReactionBtnOpen]}
+                    onPress={() => setReactionPickerFor(reactionPickerFor === c.id ? null : c.id)}
+                    activeOpacity={0.7}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add reaction"
+                  >
+                    <Feather name="smile" size={15} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {reactionPickerFor === c.id && (
+                  <View style={styles.reactionPicker}>
+                    {REACTION_EMOJI.map((emoji) => {
+                      const mine = (c.reactions ?? []).some((r) => r.emoji === emoji && r.reactedByMe);
+                      return (
+                        <TouchableOpacity
+                          key={emoji}
+                          style={[styles.reactionPickerBtn, mine && styles.reactionPickerBtnMine]}
+                          onPress={() => handleToggleReaction(c.id, emoji)}
+                          activeOpacity={0.6}
+                          accessibilityRole="button"
+                          accessibilityLabel={mine ? `Remove ${emoji}` : `React with ${emoji}`}
+                        >
+                          <Text style={styles.reactionPickerEmoji}>{emoji}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             </View>
           ))}
@@ -442,9 +544,9 @@ export default function IssueDetailScreen() {
           multiline={false}
         />
         <TouchableOpacity
-          style={[styles.commentSendBtn, (!comment.trim() || addingComment) && styles.commentSendBtnDisabled]}
+          style={[styles.commentSendBtn, (!cleanComment || addingComment) && styles.commentSendBtnDisabled]}
           onPress={handleAddComment}
-          disabled={!comment.trim() || addingComment}
+          disabled={!cleanComment || addingComment}
         >
           {addingComment ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -519,25 +621,59 @@ export default function IssueDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* Full Screen Image Modal */}
+      {/* Full Screen Image Modal — pinch / double-tap to zoom, drag to pan */}
       <Modal
         visible={showFullImage}
         transparent
         animationType="fade"
         onRequestClose={() => setShowFullImage(false)}
       >
-        <Pressable style={styles.fullImageOverlay} onPress={() => setShowFullImage(false)}>
-          <TouchableOpacity style={styles.fullImageCloseBtn} onPress={() => setShowFullImage(false)}>
-            <Feather name="x" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Image
-            source={{
-              uri: imageUri ?? "",
-              headers: (!isSignedUrl && token) ? { Authorization: `Bearer ${token}` } : undefined,
-            }}
-            style={styles.fullImage}
-            resizeMode="contain"
-          />
+        {/* A Modal is its own native root, so gestures inside it need their
+            own GestureHandlerRootView (the app-level one doesn't cover it). */}
+        <GestureHandlerRootView style={styles.fullImageOverlay}>
+          {/* The close button lives in its own bar ABOVE the zoom area rather
+              than floating over it, so it never competes with the gestures. */}
+          <View style={[styles.fullImageTopBar, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
+            <TouchableOpacity
+              style={styles.fullImageCloseBtn}
+              onPress={() => setShowFullImage(false)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close photo"
+            >
+              <Feather name="x" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          {imageUri && (
+            <ZoomableImage
+              source={{
+                uri: imageUri,
+                headers: (!isSignedUrl && token) ? { Authorization: `Bearer ${token}` } : undefined,
+              }}
+              onSingleTap={() => setShowFullImage(false)}
+            />
+          )}
+          <Text style={[styles.fullImageHint, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            Pinch or double-tap to zoom
+          </Text>
+        </GestureHandlerRootView>
+      </Modal>
+
+      {/* Who reacted — opened by holding a reaction chip */}
+      <Modal
+        visible={!!reactionDetail}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReactionDetail(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setReactionDetail(null)}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.reactionDetailEmoji}>{reactionDetail?.emoji}</Text>
+            {reactionDetail?.names.map((name, i) => (
+              <Text key={`${name}-${i}`} style={styles.reactionDetailName}>{name}</Text>
+            ))}
+          </View>
         </Pressable>
       </Modal>
 
@@ -698,21 +834,24 @@ const styles = StyleSheet.create({
   fullImageOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
+  },
+  fullImageTopBar: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   fullImageCloseBtn: {
-    position: "absolute",
-    top: 56,
-    right: 20,
-    zIndex: 10,
     backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 20,
     padding: 10,
   },
-  fullImage: {
-    width: "100%",
-    height: "80%",
+  fullImageHint: {
+    textAlign: "center",
+    paddingTop: 10,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.55)",
+    fontFamily: "Inter_400Regular",
   },
   imageErrorContainer: {
     width: "100%",
@@ -857,6 +996,99 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: "Inter_400Regular",
     lineHeight: 22,
+  },
+  reactionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  reactionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  reactionChipMine: {
+    borderColor: Colors.primary + "55",
+    backgroundColor: Colors.primary + "12",
+  },
+  // Emoji-only text deliberately sets NO fontFamily: it should use the
+  // platform's own emoji font, not fall back through Inter.
+  reactionEmoji: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  reactionCount: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_600SemiBold",
+    fontVariant: ["tabular-nums"],
+  },
+  reactionCountMine: {
+    color: Colors.primary,
+  },
+  addReactionBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addReactionBtnOpen: {
+    borderColor: Colors.primary + "55",
+    backgroundColor: Colors.primary + "12",
+  },
+  reactionPicker: {
+    flexDirection: "row",
+    // Wraps onto a second row rather than overflowing the card on the
+    // narrowest phones, where the comment column is under ~240pt wide.
+    flexWrap: "wrap",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    gap: 2,
+    marginTop: 8,
+    padding: 4,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  reactionPickerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  reactionPickerBtnMine: {
+    backgroundColor: Colors.primary + "18",
+  },
+  reactionPickerEmoji: {
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  reactionDetailEmoji: {
+    fontSize: 34,
+    lineHeight: 42,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  reactionDetailName: {
+    fontSize: 16,
+    color: Colors.text,
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
+    paddingVertical: 8,
   },
   commentInputBar: {
     flexDirection: "row",

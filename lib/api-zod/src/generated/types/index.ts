@@ -7,6 +7,7 @@
  */
 
 export * from "./comment";
+export * from "./commentReaction";
 export * from "./createCommentRequest";
 export * from "./createIssueRequest";
 export * from "./createIssueRequestArea";
@@ -58,6 +59,7 @@ export * from "./supervisorLoginRequest";
 export * from "./supervisorLoginResponse";
 export * from "./supervisorRole";
 export * from "./supervisorSpecialty";
+export * from "./toggleReactionRequest";
 export * from "./updateIssueRequest";
 export * from "./updateIssueRequestPriority";
 export * from "./updateIssueRequestStatus";

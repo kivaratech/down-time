@@ -24,6 +24,20 @@ export type NotificationRecipient = {
   token: string;
 };
 
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+// Shortens text for a notification preview without cutting through an emoji.
+// A plain `text.slice(0, n)` counts UTF-16 units, so it can split an emoji's
+// surrogate pair (or a multi-part emoji like a flag or a skin-toned thumbs-up)
+// and the notification shows a broken "�" where the emoji was. Counting
+// user-perceived characters keeps every emoji whole.
+function truncateForPreview(text: string, maxChars = 80): string {
+  if (text.length <= maxChars) return text;
+  const chars = Array.from(graphemeSegmenter.segment(text), (s) => s.segment);
+  if (chars.length <= maxChars) return text;
+  return chars.slice(0, maxChars - 3).join("") + "…";
+}
+
 function isValidExpoPushToken(token: string): boolean {
   return token.startsWith("ExponentPushToken[") || token.startsWith("ExpoPushToken[");
 }
@@ -165,7 +179,7 @@ export async function notifySupervisorsOfNewIssue(params: {
   const { issueId, restaurantName, equipmentType, subItem, description, recipients } = params;
 
   const equipmentLabel = subItem ? `${equipmentType} · ${subItem}` : equipmentType;
-  const shortDesc = description.length > 80 ? description.slice(0, 77) + "…" : description;
+  const shortDesc = truncateForPreview(description);
 
   await dispatchIssuePush({
     issueId,
@@ -188,7 +202,7 @@ export async function notifyOfNewComment(params: {
   const { issueId, restaurantName, equipmentType, subItem, commenterName, commentBody, recipients } = params;
 
   const equipmentLabel = subItem ? `${equipmentType} · ${subItem}` : equipmentType;
-  const shortBody = commentBody.length > 80 ? commentBody.slice(0, 77) + "…" : commentBody;
+  const shortBody = truncateForPreview(commentBody);
 
   await dispatchIssuePush({
     issueId,

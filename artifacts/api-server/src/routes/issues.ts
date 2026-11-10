@@ -20,6 +20,8 @@ import {
 import { getCategoryForArea } from "../lib/equipment";
 import { notifySupervisorsOfNewIssue, notifyOfNewComment } from "../lib/notifications";
 import { ObjectStorageService, deleteObjectByKey } from "../lib/objectStorage";
+import { isSupportedReaction, loadCommentReactions, toggleCommentReaction } from "../lib/reactions";
+import { stripObjectPlaceholders } from "../lib/text";
 import {
   ListRestaurantIssuesParams,
   ListRestaurantIssuesQueryParams,
@@ -30,10 +32,13 @@ import {
   UpdateIssueBody,
   AddCommentParams,
   AddCommentBody,
+  ToggleCommentReactionParams,
+  ToggleCommentReactionBody,
 } from "@workspace/api-zod";
 import { z } from "zod";
 
 const SAFE_OBJECT_PATH = /^[\w\-.\/]+$/;
+const MAX_REPORTED_BY_LENGTH = 80;
 const objectStorageService = new ObjectStorageService();
 
 const router: IRouter = Router();
@@ -65,6 +70,7 @@ function buildIssueQuery() {
       description: issuesTable.description,
       status: issuesTable.status,
       assignedTo: issuesTable.assignedTo,
+      reportedBy: issuesTable.reportedBy,
       priority: issuesTable.priority,
       imageUrl: issuesTable.imageUrl,
       createdAt: issuesTable.createdAt,
@@ -206,7 +212,16 @@ router.post("/issues", async (req, res) => {
     return;
   }
 
-  const { restaurantId, area, equipmentType, subItem, customLabel, description, assignedTo, imageUrl } = body.data;
+  const { restaurantId, area, equipmentType, subItem, customLabel, reportedBy, imageUrl } = body.data;
+
+  // iOS voice dictation leaves invisible placeholder characters in the text,
+  // which Android then draws as an "OBJ" box. Strip them before anything is
+  // validated, stored, or put in a push notification. Done here rather than
+  // only in the app so tablets on an older bundle are covered too.
+  const description = stripObjectPlaceholders(body.data.description).trim();
+  const assignedTo = body.data.assignedTo != null
+    ? stripObjectPlaceholders(body.data.assignedTo).trim() || null
+    : null;
 
   // Single access check handles device-own-restaurant, supervisor-assignment,
   // admin-same-org, and super_admin-bypass uniformly. Also rejects non-existent
@@ -214,6 +229,11 @@ router.post("/issues", async (req, res) => {
   // target lookup below will 404 anyway).
   if (!(await principalCanAccessRestaurant(principal, restaurantId))) {
     res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  if (!description) {
+    res.status(400).json({ error: "Description is required" });
     return;
   }
 
@@ -225,6 +245,28 @@ router.post("/issues", async (req, res) => {
   if (imageUrl && !SAFE_OBJECT_PATH.test(imageUrl)) {
     res.status(400).json({ error: "Invalid imageUrl format" });
     return;
+  }
+
+  // Who reported it. A logged-in supervisor/admin is always recorded under
+  // their account name (whatever the client sent is ignored, so it can't be
+  // spoofed or drift from the account). A paired tablet is a shared device, so
+  // it sends the name the person typed. The field stays optional at the API
+  // level: tablets still running an older app bundle don't send it, and
+  // rejecting them would block issue reporting until they update.
+  let reporterName: string | null = null;
+  if (principal.kind === "supervisor") {
+    const [me] = await db
+      .select({ name: supervisorsTable.name })
+      .from(supervisorsTable)
+      .where(eq(supervisorsTable.id, principal.supervisorId))
+      .limit(1);
+    reporterName = me?.name ?? null;
+  } else {
+    reporterName = (reportedBy != null ? stripObjectPlaceholders(reportedBy).trim() : "") || null;
+    if (reporterName && reporterName.length > MAX_REPORTED_BY_LENGTH) {
+      res.status(400).json({ error: `Name must be ${MAX_REPORTED_BY_LENGTH} characters or less` });
+      return;
+    }
   }
 
   // Derive the issue's organization from its target restaurant — single source
@@ -254,7 +296,8 @@ router.post("/issues", async (req, res) => {
       customLabel: customLabel ?? null,
       description,
       status: "open",
-      assignedTo: assignedTo ?? null,
+      assignedTo,
+      reportedBy: reporterName,
       imageUrl: imageUrl ?? null,
     })
     .returning();
@@ -388,7 +431,16 @@ router.get("/issues/:id", async (req, res) => {
     .where(eq(commentsTable.issueId, id))
     .orderBy(asc(commentsTable.createdAt));
 
-  res.json({ ...issue, imageUrl: resolvedImageUrl, comments });
+  const reactionsByComment = await loadCommentReactions(
+    comments.map((c) => c.id),
+    principal,
+  );
+
+  res.json({
+    ...issue,
+    imageUrl: resolvedImageUrl,
+    comments: comments.map((c) => ({ ...c, reactions: reactionsByComment.get(c.id) ?? [] })),
+  });
 });
 
 // PATCH /api/issues/:id
@@ -430,11 +482,17 @@ router.patch("/issues/:id", async (req, res) => {
     updates.status = status;
     updates.resolvedAt = status === "resolved" ? new Date() : null;
   }
+  // Same dictation-placeholder cleanup as issue creation.
   if (assignedTo !== undefined) {
-    updates.assignedTo = assignedTo ?? null;
+    updates.assignedTo = assignedTo != null ? stripObjectPlaceholders(assignedTo).trim() || null : null;
   }
   if (description !== undefined) {
-    updates.description = description;
+    const cleanDescription = stripObjectPlaceholders(description).trim();
+    if (!cleanDescription) {
+      res.status(400).json({ error: "Description is required" });
+      return;
+    }
+    updates.description = cleanDescription;
   }
   // Priority is a supervisor-side concern; devices can't set it.
   if (priority !== undefined && principal.kind === "supervisor") {
@@ -541,12 +599,21 @@ router.post("/issues/:id/comments", async (req, res) => {
     return;
   }
 
+  // Same dictation-placeholder cleanup as issue descriptions. A comment that
+  // was nothing but a placeholder has no text left to post.
+  const commentBody = stripObjectPlaceholders(body.data.body).trim();
+  if (!commentBody) {
+    res.status(400).json({ error: "Comment is empty" });
+    return;
+  }
+  const authorName = stripObjectPlaceholders(body.data.authorName).trim() || "Unknown";
+
   const [comment] = await db
     .insert(commentsTable)
-    .values({ issueId, authorName: body.data.authorName, body: body.data.body })
+    .values({ issueId, authorName, body: commentBody })
     .returning();
 
-  res.status(201).json(comment);
+  res.status(201).json({ ...comment, reactions: [] });
 
   // Notify everyone watching this issue that a new comment landed — non-blocking.
   // Recipients mirror the new-issue rules: specialty-matched assigned supervisors
@@ -631,6 +698,61 @@ router.post("/issues/:id/comments", async (req, res) => {
     .catch((err) => {
       log.error({ err }, "Comment notification send failed");
     });
+});
+
+// POST /api/issues/:id/comments/:commentId/reactions — toggle an emoji reaction.
+// Anyone who can see the issue can react: supervisors/admins as themselves,
+// a paired tablet as its restaurant. Deliberately sends no push notification —
+// a reaction is a lightweight acknowledgement, not something to buzz phones for.
+router.post("/issues/:id/comments/:commentId/reactions", async (req, res) => {
+  const params = ToggleCommentReactionParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid issue or comment ID" });
+    return;
+  }
+  const { id: issueId, commentId } = params.data;
+
+  const principal = requireAuth(req, res);
+  if (!principal) return;
+
+  const body = ToggleCommentReactionBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid request body", details: body.error.issues });
+    return;
+  }
+  const { emoji } = body.data;
+  if (!isSupportedReaction(emoji)) {
+    res.status(400).json({ error: "Unsupported reaction" });
+    return;
+  }
+
+  const [issue] = await db.select().from(issuesTable).where(eq(issuesTable.id, issueId)).limit(1);
+  if (!issue) {
+    res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  if (!(await principalCanAccessIssue(principal, issue))) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  // The comment must belong to THIS issue — otherwise access to one issue
+  // would let a caller react to (and read back) comments on any other.
+  const [comment] = await db
+    .select()
+    .from(commentsTable)
+    .where(and(eq(commentsTable.id, commentId), eq(commentsTable.issueId, issueId)))
+    .limit(1);
+  if (!comment) {
+    res.status(404).json({ error: "Comment not found" });
+    return;
+  }
+
+  await toggleCommentReaction(commentId, emoji, principal);
+
+  const reactionsByComment = await loadCommentReactions([commentId], principal);
+  res.json({ ...comment, reactions: reactionsByComment.get(commentId) ?? [] });
 });
 
 const DeleteCommentParams = z.object({ id: z.coerce.number().int().positive(), commentId: z.coerce.number().int().positive() });

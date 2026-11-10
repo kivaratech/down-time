@@ -135,6 +135,8 @@ export interface Issue {
   description: string;
   status: IssueStatus;
   assignedTo?: string | null;
+  /** Name of the person who reported the issue, when known. */
+  reportedBy?: string | null;
   priority?: IssuePriority;
   createdAt: string;
   updatedAt: string;
@@ -143,17 +145,35 @@ export interface Issue {
   imageUrl?: string | null;
 }
 
+/**
+ * One emoji's reactions on a comment, aggregated across everyone who used it.
+ */
+export interface CommentReaction {
+  emoji: string;
+  count: number;
+  /** True when the caller (the supervisor, or the tablet's restaurant) has this reaction. */
+  reactedByMe: boolean;
+  /** Display names of everyone who reacted with this emoji. */
+  names: string[];
+}
+
 export interface Comment {
   id: number;
   issueId: number;
   authorName: string;
   body: string;
   createdAt: string;
+  reactions: CommentReaction[];
 }
 
 export type IssueWithComments = Issue & {
   comments: Comment[];
 };
+
+export interface ToggleReactionRequest {
+  /** One of the supported reaction emoji. The server rejects anything else. */
+  emoji: string;
+}
 
 export type CreateIssueRequestArea =
   (typeof CreateIssueRequestArea)[keyof typeof CreateIssueRequestArea];
@@ -173,6 +193,9 @@ export interface CreateIssueRequest {
   customLabel?: string | null;
   description: string;
   assignedTo?: string | null;
+  /** Name of the person reporting. Sent by restaurant tablets. Ignored for supervisor/admin callers, whose account name is used instead.
+   */
+  reportedBy?: string | null;
   imageUrl?: string | null;
 }
 

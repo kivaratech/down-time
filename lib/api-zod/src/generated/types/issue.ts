@@ -22,6 +22,8 @@ export interface Issue {
   description: string;
   status: IssueStatus;
   assignedTo?: string | null;
+  /** Name of the person who reported the issue, when known. */
+  reportedBy?: string | null;
   priority?: IssuePriority;
   createdAt: Date;
   updatedAt: Date;

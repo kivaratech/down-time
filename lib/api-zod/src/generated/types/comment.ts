@@ -5,6 +5,7 @@
  * DownTime — Restaurant Equipment Issue Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { CommentReaction } from "./commentReaction";
 
 export interface Comment {
   id: number;
@@ -12,4 +13,5 @@ export interface Comment {
   authorName: string;
   body: string;
   createdAt: Date;
+  reactions: CommentReaction[];
 }

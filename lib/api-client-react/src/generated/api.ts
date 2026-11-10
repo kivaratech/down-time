@@ -48,6 +48,7 @@ import type {
   SuccessResponse,
   SupervisorLoginRequest,
   SupervisorLoginResponse,
+  ToggleReactionRequest,
   UpdateIssueRequest,
   UpdateOrgRestaurantRequest,
   UpdateOrganizationSettingsRequest,
@@ -1251,6 +1252,96 @@ export const useAddComment = <
   TContext
 > => {
   return useMutation(getAddCommentMutationOptions(options));
+};
+
+/**
+ * Adds the emoji reaction for the caller if they have not reacted with it yet, otherwise removes it. Supervisors/admins react as themselves; a paired tablet reacts as its restaurant. Returns the updated comment.
+
+ * @summary Toggle an emoji reaction on a comment
+ */
+export const getToggleCommentReactionUrl = (id: number, commentId: number) => {
+  return `/api/issues/${id}/comments/${commentId}/reactions`;
+};
+
+export const toggleCommentReaction = async (
+  id: number,
+  commentId: number,
+  toggleReactionRequest: ToggleReactionRequest,
+  options?: RequestInit,
+): Promise<Comment> => {
+  return customFetch<Comment>(getToggleCommentReactionUrl(id, commentId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(toggleReactionRequest),
+  });
+};
+
+export const getToggleCommentReactionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleCommentReaction>>,
+    TError,
+    { id: number; commentId: number; data: BodyType<ToggleReactionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleCommentReaction>>,
+  TError,
+  { id: number; commentId: number; data: BodyType<ToggleReactionRequest> },
+  TContext
+> => {
+  const mutationKey = ["toggleCommentReaction"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleCommentReaction>>,
+    { id: number; commentId: number; data: BodyType<ToggleReactionRequest> }
+  > = (props) => {
+    const { id, commentId, data } = props ?? {};
+
+    return toggleCommentReaction(id, commentId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleCommentReactionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleCommentReaction>>
+>;
+export type ToggleCommentReactionMutationBody = BodyType<ToggleReactionRequest>;
+export type ToggleCommentReactionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Toggle an emoji reaction on a comment
+ */
+export const useToggleCommentReaction = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleCommentReaction>>,
+    TError,
+    { id: number; commentId: number; data: BodyType<ToggleReactionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleCommentReaction>>,
+  TError,
+  { id: number; commentId: number; data: BodyType<ToggleReactionRequest> },
+  TContext
+> => {
+  return useMutation(getToggleCommentReactionMutationOptions(options));
 };
 
 /**

@@ -15,5 +15,8 @@ export interface CreateIssueRequest {
   customLabel?: string | null;
   description: string;
   assignedTo?: string | null;
+  /** Name of the person reporting. Sent by restaurant tablets. Ignored for supervisor/admin callers, whose account name is used instead.
+   */
+  reportedBy?: string | null;
   imageUrl?: string | null;
 }

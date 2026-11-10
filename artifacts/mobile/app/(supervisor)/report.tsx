@@ -9,12 +9,10 @@ import {
   type EquipmentItem,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -27,8 +25,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
+import PhotoField from "@/components/PhotoField";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { stripObjectPlaceholders } from "@/lib/cleanText";
 import { compressPhotoForUpload } from "@/lib/photoUtils";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
@@ -50,7 +50,7 @@ type Step = "restaurant" | "area" | "equipment" | "subitem" | "description";
 export default function SupervisorReportScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { token } = useAuth();
+  const { token, supervisor } = useAuth();
 
   const [step, setStep] = useState<Step>("restaurant");
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
@@ -90,6 +90,11 @@ export default function SupervisorReportScreen() {
       },
     },
   });
+
+  // What actually gets sent: the typed/dictated text minus the invisible
+  // placeholders iOS dictation leaves behind (Android shows them as "OBJ").
+  // The input keeps the raw text — rewriting it mid-dictation cuts dictation off.
+  const cleanDescription = stripObjectPlaceholders(description).trim();
 
   const currentArea = equipmentData?.areas?.find((a) => a.area === selectedArea);
   const equipmentItems = currentArea?.items ?? [];
@@ -170,49 +175,8 @@ export default function SupervisorReportScreen() {
     setStep("description");
   }
 
-  async function handleTakePhoto() {
-    await Haptics.selectionAsync();
-    if (Platform.OS === "web") {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: false,
-      });
-      if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoOriginalWidth(asset.width ?? 0);
-      }
-      return;
-    }
-    const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (cameraResult.status === "granted") {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: false,
-      });
-      if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoOriginalWidth(asset.width ?? 0);
-      }
-    } else {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: false,
-      });
-      if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoOriginalWidth(asset.width ?? 0);
-      }
-    }
-  }
-
   async function handleSubmit() {
-    if (!description.trim()) {
+    if (!cleanDescription) {
       setError("Please add a brief description.");
       return;
     }
@@ -255,7 +219,7 @@ export default function SupervisorReportScreen() {
         area: selectedArea!,
         equipmentType: selectedEquipment!.name,
         subItem: selectedSubItem ?? undefined,
-        description: description.trim(),
+        description: cleanDescription,
         assignedTo: assignedTo.trim() || undefined,
         imageUrl: imageObjectPath,
       },
@@ -475,6 +439,9 @@ export default function SupervisorReportScreen() {
               <Text style={styles.summaryMeta}>
                 {selectedArea} · {selectedRestaurant?.name}
               </Text>
+              {supervisor?.name ? (
+                <Text style={styles.summaryReporter}>Reported by {supervisor.name}</Text>
+              ) : null}
             </View>
 
             <View style={styles.fieldGroup}>
@@ -494,32 +461,13 @@ export default function SupervisorReportScreen() {
               <Text style={styles.charCount}>{description.length}/500</Text>
             </View>
 
-            {/* Photo Capture */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Photo (optional)</Text>
-              {photoUri ? (
-                <View style={styles.photoPreviewContainer}>
-                  <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                  <TouchableOpacity
-                    style={styles.removePhotoBtn}
-                    onPress={() => { setPhotoUri(null); setPhotoOriginalWidth(0); }}
-                  >
-                    <Feather name="x-circle" size={22} color={Colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.retakeBtn} onPress={handleTakePhoto}>
-                    <Feather name="refresh-cw" size={14} color={Colors.textSecondary} />
-                    <Text style={styles.retakeBtnText}>Retake</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.8}>
-                  <Feather name="camera" size={20} color={Colors.primary} />
-                  <Text style={styles.photoBtnText}>
-                    {Platform.OS === "web" ? "Attach Photo" : "Take Photo"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <PhotoField
+              photoUri={photoUri}
+              onChange={(photo) => {
+                setPhotoUri(photo?.uri ?? null);
+                setPhotoOriginalWidth(photo?.width ?? 0);
+              }}
+            />
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Assign to (optional)</Text>
@@ -539,9 +487,9 @@ export default function SupervisorReportScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.submitBtn, (!description.trim() || isBusy) && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, (!cleanDescription || isBusy) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
-              disabled={!description.trim() || isBusy}
+              disabled={!cleanDescription || isBusy}
               activeOpacity={0.8}
             >
               {isBusy ? (
@@ -755,6 +703,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: "Inter_400Regular",
   },
+  summaryReporter: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_400Regular",
+    marginTop: 6,
+  },
   fieldGroup: {
     gap: 8,
   },
@@ -781,54 +735,6 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     fontFamily: "Inter_400Regular",
     textAlign: "right",
-  },
-  photoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: "dashed",
-    gap: 10,
-  },
-  photoBtnText: {
-    fontSize: 15,
-    color: Colors.primary,
-    fontFamily: "Inter_500Medium",
-  },
-  photoPreviewContainer: {
-    position: "relative",
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: Colors.surface,
-  },
-  photoPreview: {
-    width: "100%",
-    height: 200,
-    resizeMode: "cover",
-  },
-  removePhotoBtn: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-  },
-  retakeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    backgroundColor: Colors.surface,
-  },
-  retakeBtnText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_400Regular",
   },
   assignInput: {
     flexDirection: "row",
